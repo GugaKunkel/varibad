@@ -15,8 +15,8 @@ def worker(remote, parent_remote, env_fn_wrapper):
         while True:
             cmd, data = remote.recv()
             if cmd == 'step':
-                ob, reward, done, info = env.step(data)
-                remote.send((ob, reward, done, info))
+                ob, reward, terminated, truncated, info = env.step(data)
+                remote.send((ob, reward, terminated, truncated, info))
             elif cmd == 'reset':
                 ob = env.reset()
                 remote.send(ob)
@@ -88,8 +88,8 @@ class SubprocVecEnv(VecEnv):
         self._assert_not_closed()
         results = [remote.recv() for remote in self.remotes]
         self.waiting = False
-        obs, rews, dones, infos = zip(*results)
-        return np.stack(obs), np.stack(rews), np.stack(dones), infos
+        obs, rews, terminated, truncated, infos = zip(*results)
+        return np.stack(obs), np.stack(rews), np.stack(terminated), np.stack(truncated), infos
 
     def reset(self, task=None):
         self._assert_not_closed()

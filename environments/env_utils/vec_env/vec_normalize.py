@@ -45,13 +45,14 @@ class VecNormalize(VecEnvWrapper):
 
     def step_wait(self):
         # execute action
-        obs, rews, news, infos = self.venv.step_wait()
+        obs, rews, terminateds, truncateds, infos = self.venv.step_wait()
+        dones = np.logical_or(terminateds, truncateds)
         # update discounted return
         self.ret = self.ret * self.gamma + rews
-        self.ret[news] = 0.
+        self.ret[dones] = 0.
         # normalise
         rews = self._rewfilt(rews)
-        return obs, rews, news, infos
+        return obs, rews, terminateds, truncateds, infos
 
     def _rewfilt(self, rews):
         if self.normalise_rew:

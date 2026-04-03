@@ -55,7 +55,8 @@ def make_vec_envs(env_name, seed, num_processes, gamma,
                      add_done_info=add_done_info,
                      **kwargs)
             for i in range(num_processes)]
-
+    
+    # This does stuff to run multiple envs in parallel (scary code)
     if len(envs) > 1:
         envs = SubprocVecEnv(envs)
     else:
@@ -77,7 +78,6 @@ class VecPyTorch(VecEnvWrapper):
         """Return only every `skip`-th frame"""
         super(VecPyTorch, self).__init__(venv)
         self.device = device
-        # TODO: Fix data types
 
     def reset_mdp(self, index=None):
         obs = self.venv.reset_mdp(index=index)
@@ -103,7 +103,7 @@ class VecPyTorch(VecEnvWrapper):
         self.venv.step_async(actions)
 
     def step_wait(self):
-        state, reward, done, info = self.venv.step_wait()
+        state, reward, terminated, truncated, info = self.venv.step_wait()
         if isinstance(state, list):  # raw + normalised
             state = [torch.from_numpy(s).float().to(self.device) for s in state]
         else:
@@ -112,7 +112,7 @@ class VecPyTorch(VecEnvWrapper):
             reward = [torch.from_numpy(r).unsqueeze(dim=1).float().to(self.device) for r in reward]
         else:
             reward = torch.from_numpy(reward).unsqueeze(dim=1).float().to(self.device)
-        return state, reward, done, info
+        return state, reward, terminated, truncated, info
 
     def __getattr__(self, attr):
         """ If env does not have the attribute then call the attribute in the wrapped_env """

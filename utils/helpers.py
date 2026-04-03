@@ -1,6 +1,5 @@
 import os
 import pickle
-# import pickle5 as pickle
 import random
 import warnings
 from distutils.util import strtobool
@@ -13,35 +12,6 @@ from torch.nn import functional as F
 from environments.parallel_envs import make_vec_envs
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-
-# def save_models(args, logger, policy, vae, envs, iter_idx):
-#     # TODO: save parameters, not entire model
-#
-#     save_path = os.path.join(logger.full_output_folder, 'models')
-#     if not os.path.exists(save_path):
-#         os.mkdir(save_path)
-#     try:
-#         torch.save(policy.actor_critic, os.path.join(save_path, "policy{0}.pt".format(iter_idx)))
-#     except AttributeError:
-#         torch.save(policy.policy, os.path.join(save_path, "policy{0}.pt".format(iter_idx)))
-#     torch.save(vae.encoder, os.path.join(save_path, "encoder{0}.pt".format(iter_idx)))
-#     if vae.state_decoder is not None:
-#         torch.save(vae.state_decoder, os.path.join(save_path, "state_decoder{0}.pt".format(iter_idx)))
-#     if vae.reward_decoder is not None:
-#         torch.save(vae.reward_decoder,
-#                    os.path.join(save_path, "reward_decoder{0}.pt".format(iter_idx)))
-#     if vae.task_decoder is not None:
-#         torch.save(vae.task_decoder, os.path.join(save_path, "task_decoder{0}.pt".format(iter_idx)))
-#
-#     # save normalisation params of envs
-#     if args.norm_rew_for_policy:
-#         rew_rms = envs.venv.ret_rms
-#         save_obj(rew_rms, save_path, "env_rew_rms{0}.pkl".format(iter_idx))
-#     if args.norm_obs_for_policy:
-#         obs_rms = envs.venv.obs_rms
-#         save_obj(obs_rms, save_path, "env_obs_rms{0}.pkl".format(iter_idx))
-
 
 def reset_env(env, args, indices=None, state=None):
     """ env can be many environments or just one """
@@ -69,7 +39,7 @@ def squash_action(action, args):
 
 def env_step(env, action, args):
     act = squash_action(action.detach(), args)
-    next_obs, reward, done, infos = env.step(act)
+    next_obs, reward, terminated, truncated, infos = env.step(act)
 
     if isinstance(next_obs, list):
         next_obs = [o.to(device) for o in next_obs]
@@ -83,7 +53,7 @@ def env_step(env, action, args):
     belief = torch.from_numpy(env.get_belief()).float().to(device) if args.pass_belief_to_policy else None
     task = torch.from_numpy(env.get_task()).float().to(device) if (args.pass_task_to_policy or args.decode_task) else None
 
-    return [next_obs, belief, task], reward, done, infos
+    return [next_obs, belief, task], reward, terminated, truncated, infos
 
 
 def select_action(args,

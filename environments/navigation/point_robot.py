@@ -193,7 +193,9 @@ class PointEnv(Env):
                 _, action = policy.act(state=state.view(-1), latent=latent, belief=belief, task=task,
                                        deterministic=True)
 
-                (state, belief, task), (rew, rew_normalised), done, info = utl.env_step(env, action, args)
+                (state, belief, task), (rew, rew_normalised), terminated, truncated, info = utl.env_step(env, action, args)
+                done = np.logical_or(terminated, truncated)
+                
                 state = state.float().reshape((1, -1)).to(device)
                 task = task.view(-1) if task is not None else None
 

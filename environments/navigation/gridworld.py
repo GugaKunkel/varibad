@@ -307,8 +307,8 @@ class GridNavi(gym.Env):
                                                  )
 
                 # observe reward and next obs
-                [state, belief, task], (rew_raw, rew_normalised), done, infos = utl.env_step(env, action, args)
-
+                [state, belief, task], (rew_raw, rew_normalised), terminated, truncated, infos = utl.env_step(env, action, args)
+                done = np.logical_or(terminated, truncated)
                 if encoder is not None:
                     # update task embedding
                     curr_latent_sample, curr_latent_mean, curr_latent_logvar, hidden_state = encoder(

@@ -93,11 +93,12 @@ class VecEnv(ABC):
         """
         Wait for the step taken with step_async().
 
-        Returns (obs, rews, dones, infos):
+        Returns (obs, rews, terminateds, truncateds, infos):
          - obs: an array of observations, or a dict of
                 arrays of observations.
          - rews: an array of rewards
-         - dones: an array of "episode done" booleans
+         - terminateds: an array of booleans
+         - truncateds: an array of booleans
          - infos: a sequence of info objects
         """
         pass

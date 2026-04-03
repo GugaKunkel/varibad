@@ -187,7 +187,8 @@ class Learner:
                         deterministic=False)
 
                 # observe reward and next obs
-                [state, belief, task], (rew_raw, rew_normalised), done, infos = utl.env_step(self.envs, action, self.args)
+                [state, belief, task], (rew_raw, rew_normalised), terminated, truncated, infos = utl.env_step(self.envs, action, self.args)
+                done = np.logical_or(terminated, truncated)
 
                 # create mask for episode ends
                 masks_done = torch.FloatTensor([[0.0] if done_ else [1.0] for done_ in done]).to(device)

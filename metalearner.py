@@ -41,7 +41,7 @@ class MetaLearner:
                                   normalise_rew=args.norm_rew_for_policy, ret_rms=None,
                                   tasks=None
                                   )
-
+        # Single task mode is helpful for debugging and ablations
         if self.args.single_task_mode:
             # get the current tasks (which will be num_process many different tasks)
             self.train_tasks = self.envs.get_task()
@@ -200,7 +200,8 @@ class MetaLearner:
                     )
 
                 # take step in the environment
-                [next_state, belief, task], (rew_raw, rew_normalised), done, infos = utl.env_step(self.envs, action, self.args)
+                [next_state, belief, task], (rew_raw, rew_normalised), terminated, truncated, infos = utl.env_step(self.envs, action, self.args)
+                done = np.logical_or(terminated, truncated)
 
                 done = torch.from_numpy(np.array(done, dtype=int)).to(device).float().view((-1, 1))
                 # create mask for episode ends
@@ -237,10 +238,6 @@ class MetaLearner:
                     next_state, belief, task = utl.reset_env(self.envs, self.args,
                                                              indices=done_indices, state=next_state)
 
-                # TODO: deal with resampling for posterior sampling algorithm
-                #     latent_sample = latent_sample
-                #     latent_sample[i] = latent_sample[i]
-
                 # add experience to policy buffer
                 self.policy_storage.insert(
                     state=next_state,
@@ -264,7 +261,6 @@ class MetaLearner:
                 self.frames += self.args.num_processes
 
             # --- UPDATE ---
-
             if self.args.precollect_len <= self.frames:
 
                 # check if we are pre-training the VAE

@@ -1,25 +1,6 @@
-import importlib
-
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
-
-from environments.mujoco import rand_param_envs
-
-try:
-    # this is to suppress some warnings (in the newer mujoco versions)
-    gym.logger.set_level(40)
-except AttributeError:
-    pass
-
-
-def mujoco_wrapper(entry_point, **kwargs):
-    # Load the environment from its entry point
-    module_name, attr_name = entry_point.split(':')
-    env_cls = getattr(importlib.import_module(module_name), attr_name)
-    env = env_cls(**kwargs)
-    return env
-
 
 class VariBadWrapper(gym.Wrapper):
     def __init__(self,
@@ -55,8 +36,7 @@ class VariBadWrapper(gym.Wrapper):
             self.add_done_info = add_done_info
 
         if self.add_done_info:
-            if isinstance(self.observation_space, spaces.Box) or isinstance(self.observation_space,
-                                                                            rand_param_envs.gym.spaces.box.Box):
+            if isinstance(self.observation_space, spaces.Box):
                 if len(self.observation_space.shape) > 1:
                     raise ValueError  # can't add additional info for obs of more than 1D
                 low = np.concatenate(
@@ -68,8 +48,6 @@ class VariBadWrapper(gym.Wrapper):
                 # shape will be deduced from low/high arrays
                 self.observation_space = spaces.Box(low=low, high=high, dtype=np.float32)
             else:
-                # TODO: add something simliar for the other possible spaces,
-                # "Space", "Discrete", "MultiDiscrete", "MultiBinary", "Tuple", "Dict", "flatdim", "flatten", "unflatten"
                 raise NotImplementedError
 
         # calculate horizon length H^+
@@ -95,7 +73,6 @@ class VariBadWrapper(gym.Wrapper):
 
     def reset(self, task=None):
         """ Resets the BAMDP """
-
         # reset task (Gymnasium wrappers like OrderEnforcing may not expose custom methods)
         if hasattr(self.env, 'reset_task'):
             self.env.reset_task(task)
@@ -131,11 +108,8 @@ class VariBadWrapper(gym.Wrapper):
 
         # do normal environment step in MDP
         step_out = self.env.step(action)
-        if len(step_out) == 5:
-            state, reward, terminated, truncated, info = step_out
-            self.done_mdp = bool(terminated or truncated)
-        else:
-            state, reward, self.done_mdp, info = step_out
+        state, reward, terminated, truncated, info = step_out
+        self.done_mdp = bool(terminated or truncated)
 
         info['done_mdp'] = self.done_mdp
 
@@ -145,66 +119,27 @@ class VariBadWrapper(gym.Wrapper):
         self.step_count_bamdp += 1
         # if we want to maximise performance over multiple episodes,
         # only say "done" when we collected enough episodes in this task
-        done_bamdp = False
+        terminated_bamdp = False
+        truncated_bamdp = False
         if self.done_mdp:
             self.episode_count += 1
             if self.episode_count == self.episodes_per_task:
-                done_bamdp = True
+                terminated_bamdp = True
 
-        if self.done_mdp and not done_bamdp:
+        if self.done_mdp and not terminated_bamdp:
             info['start_state'] = self.reset_mdp()
 
-        return state, reward, done_bamdp, info
-
-    def __getattr__(self, attr):
-        """
-        If env does not have the attribute then call the attribute in the wrapped_env
-        (This one's only needed for mujoco 131)
-        """
-        try:
-            orig_attr = self.__getattribute__(attr)
-        except AttributeError:
-            orig_attr = self.unwrapped.__getattribute__(attr)
-        if callable(orig_attr):
-            def hooked(*args, **kwargs):
-                result = orig_attr(*args, **kwargs)
-                return result
-
-            return hooked
-        else:
-            return orig_attr
+        return state, reward, terminated_bamdp, truncated_bamdp, info
 
 
 class TimeLimitMask(gym.Wrapper):
 
     def step(self, action):
         step_out = self.env.step(action)
-        if len(step_out) == 5:
-            obs, rew, terminated, truncated, info = step_out
-            done = bool(terminated or truncated)
-        else:
-            obs, rew, done, info = step_out
-        if done and self.env._max_episode_steps == self.env._elapsed_steps:
+        obs, rew, terminated, truncated, info = step_out
+        if truncated:
             info['bad_transition'] = True
-        return obs, rew, done, info
+        return obs, rew, terminated, truncated, info
 
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
-
-    def __getattr__(self, attr):
-        """
-        If env does not have the attribute then call the attribute in the wrapped_env
-        (This one's only needed for mujoco 131)
-        """
-        try:
-            orig_attr = self.__getattribute__(attr)
-        except AttributeError:
-            orig_attr = self.unwrapped.__getattribute__(attr)
-        if callable(orig_attr):
-            def hooked(*args, **kwargs):
-                result = orig_attr(*args, **kwargs)
-                return result
-
-            return hooked
-        else:
-            return orig_attr
