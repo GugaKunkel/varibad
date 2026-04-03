@@ -13,21 +13,21 @@ from environments.parallel_envs import make_vec_envs
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-# def reset_env(env, args, indices=None, state=None):
-#     """ env can be many environments or just one """
-#     # reset all environments
-#     if (indices is None) or (len(indices) == args.num_processes):
-#         state = env.reset().float().to(device)
-#     # reset only the ones given by indices
-#     else:
-#         assert state is not None
-#         for i in indices:
-#             state[i] = env.reset(index=i)
+def reset_env(env, args, indices=None, state=None):
+    """ env can be many environments or just one """
+    # reset all environments
+    if (indices is None) or (len(indices) == args.num_processes):
+        state = env.reset().float().to(device)
+    # reset only the ones given by indices
+    else:
+        assert state is not None
+        for i in indices:
+            state[i] = env.reset(index=i)
 
-#     belief = torch.from_numpy(env.get_belief()).float().to(device) if args.pass_belief_to_policy else None
-#     task = torch.from_numpy(env.get_task()).float().to(device) if args.pass_task_to_policy else None
+    belief = torch.from_numpy(env.get_belief()).float().to(device) if args.pass_belief_to_policy else None
+    task = torch.from_numpy(env.get_task()).float().to(device) if args.pass_task_to_policy else None
         
-#     return state, belief, task
+    return state, belief, task
 
 # def env_step(env, action, args):
 #     act = squash_action(action.detach(), args)
@@ -222,38 +222,38 @@ class FeatureExtractor(nn.Module):
 #         return pickle.load(f)
 
 
-# class RunningMeanStd(object):
-#     # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Parallel_algorithm
-#     # PyTorch version.
-#     def __init__(self, epsilon=1e-4, shape=()):
-#         self.mean = torch.zeros(shape).float().to(device)
-#         self.var = torch.ones(shape).float().to(device)
-#         self.count = epsilon
+class RunningMeanStd(object):
+    # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Parallel_algorithm
+    # PyTorch version.
+    def __init__(self, epsilon=1e-4, shape=()):
+        self.mean = torch.zeros(shape).float().to(device)
+        self.var = torch.ones(shape).float().to(device)
+        self.count = epsilon
 
-#     def update(self, x):
-#         x = x.view((-1, x.shape[-1]))
-#         batch_mean = x.mean(dim=0)
-#         batch_var = x.var(dim=0)
-#         batch_count = x.shape[0]
-#         self.update_from_moments(batch_mean, batch_var, batch_count)
+    def update(self, x):
+        x = x.view((-1, x.shape[-1]))
+        batch_mean = x.mean(dim=0)
+        batch_var = x.var(dim=0)
+        batch_count = x.shape[0]
+        self.update_from_moments(batch_mean, batch_var, batch_count)
 
-#     def update_from_moments(self, batch_mean, batch_var, batch_count):
-#         self.mean, self.var, self.count = update_mean_var_count_from_moments(
-#             self.mean, self.var, self.count, batch_mean, batch_var, batch_count)
+    def update_from_moments(self, batch_mean, batch_var, batch_count):
+        self.mean, self.var, self.count = update_mean_var_count_from_moments(
+            self.mean, self.var, self.count, batch_mean, batch_var, batch_count)
 
 
-# def update_mean_var_count_from_moments(mean, var, count, batch_mean, batch_var, batch_count):
-#     delta = batch_mean - mean
-#     tot_count = count + batch_count
+def update_mean_var_count_from_moments(mean, var, count, batch_mean, batch_var, batch_count):
+    delta = batch_mean - mean
+    tot_count = count + batch_count
 
-#     new_mean = mean + delta * batch_count / tot_count
-#     m_a = var * count
-#     m_b = batch_var * batch_count
-#     M2 = m_a + m_b + torch.pow(delta, 2) * count * batch_count / tot_count
-#     new_var = M2 / tot_count
-#     new_count = tot_count
+    new_mean = mean + delta * batch_count / tot_count
+    m_a = var * count
+    m_b = batch_var * batch_count
+    M2 = m_a + m_b + torch.pow(delta, 2) * count * batch_count / tot_count
+    new_var = M2 / tot_count
+    new_count = tot_count
 
-#     return new_mean, new_var, new_count
+    return new_mean, new_var, new_count
 
 
 def boolean_argument(value):

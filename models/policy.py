@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-# from utils import helpers as utl
+from utils import helpers as utl
 # try:
 #     from torch.distributions import TanhTransform, TransformedDistribution
 
@@ -24,28 +24,28 @@ import torch.nn as nn
 #     print('You are probably running MuJoCo 131, so PyTorch Transforms cannot be used.')
 #     pass
 
-# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 class Policy(nn.Module):
     def __init__(self,
                  args,
-#                  # input
-#                  pass_state_to_policy,
-#                  pass_latent_to_policy,
-#                  pass_belief_to_policy,
-#                  pass_task_to_policy,
-#                  dim_state,
-#                  dim_latent,
-#                  dim_belief,
-#                  dim_task,
-#                  # hidden
-#                  hidden_layers,
-#                  activation_function,  # tanh, relu, leaky-relu
-#                  policy_initialisation,  # orthogonal / normc
-#                  # output
-#                  action_space,
-#                  init_std,
+                 # input
+                 pass_state_to_policy,
+                 pass_latent_to_policy,
+                 pass_belief_to_policy,
+                 pass_task_to_policy,
+                 dim_state,
+                 dim_latent,
+                 dim_belief,
+                 dim_task,
+                 # hidden
+                 hidden_layers,
+                 activation_function,  # tanh, relu, leaky-relu
+                 policy_initialisation,  # orthogonal / normc
+                 # output
+                 action_space,
+                 init_std,
                  ):
         """
         The policy can get any of these as input:
@@ -57,83 +57,83 @@ class Policy(nn.Module):
 
         self.args = args
 
-#         if activation_function == 'tanh':
-#             self.activation_function = nn.Tanh()
-#         elif activation_function == 'relu':
-#             self.activation_function = nn.ReLU()
-#         elif activation_function == 'leaky-relu':
-#             self.activation_function = nn.LeakyReLU()
-#         else:
-#             raise ValueError
+        if activation_function == 'tanh':
+            self.activation_function = nn.Tanh()
+        elif activation_function == 'relu':
+            self.activation_function = nn.ReLU()
+        elif activation_function == 'leaky-relu':
+            self.activation_function = nn.LeakyReLU()
+        else:
+            raise ValueError
 
-#         if policy_initialisation == 'normc':
-#             init_ = lambda m: init(m, init_normc_, lambda x: nn.init.constant_(x, 0), nn.init.calculate_gain(activation_function))
-#         elif policy_initialisation == 'orthogonal':
-#             init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.constant_(x, 0), nn.init.calculate_gain(activation_function))
+        if policy_initialisation == 'normc':
+            init_ = lambda m: init(m, init_normc_, lambda x: nn.init.constant_(x, 0), nn.init.calculate_gain(activation_function))
+        elif policy_initialisation == 'orthogonal':
+            init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.constant_(x, 0), nn.init.calculate_gain(activation_function))
 
-#         self.pass_state_to_policy = pass_state_to_policy
-#         self.pass_latent_to_policy = pass_latent_to_policy
-#         self.pass_task_to_policy = pass_task_to_policy
-#         self.pass_belief_to_policy = pass_belief_to_policy
+        self.pass_state_to_policy = pass_state_to_policy
+        self.pass_latent_to_policy = pass_latent_to_policy
+        self.pass_task_to_policy = pass_task_to_policy
+        self.pass_belief_to_policy = pass_belief_to_policy
 
-#         # set normalisation parameters for the inputs
-#         # (will be updated from outside using the RL batches)
-#         self.norm_state = self.args.norm_state_for_policy and (dim_state is not None)
-#         if self.pass_state_to_policy and self.norm_state:
-#             self.state_rms = utl.RunningMeanStd(shape=(dim_state))
-#         self.norm_latent = self.args.norm_latent_for_policy and (dim_latent is not None)
-#         if self.pass_latent_to_policy and self.norm_latent:
-#             self.latent_rms = utl.RunningMeanStd(shape=(dim_latent))
-#         self.norm_belief = self.args.norm_belief_for_policy and (dim_belief is not None)
-#         if self.pass_belief_to_policy and self.norm_belief:
-#             self.belief_rms = utl.RunningMeanStd(shape=(dim_belief))
-#         self.norm_task = self.args.norm_task_for_policy and (dim_task is not None)
-#         if self.pass_task_to_policy and self.norm_task:
-#             self.task_rms = utl.RunningMeanStd(shape=(dim_task))
+        # set normalisation parameters for the inputs
+        # (will be updated from outside using the RL batches)
+        self.norm_state = self.args.norm_state_for_policy and (dim_state is not None)
+        if self.pass_state_to_policy and self.norm_state:
+            self.state_rms = utl.RunningMeanStd(shape=(dim_state))
+        self.norm_latent = self.args.norm_latent_for_policy and (dim_latent is not None)
+        if self.pass_latent_to_policy and self.norm_latent:
+            self.latent_rms = utl.RunningMeanStd(shape=(dim_latent))
+        self.norm_belief = self.args.norm_belief_for_policy and (dim_belief is not None)
+        if self.pass_belief_to_policy and self.norm_belief:
+            self.belief_rms = utl.RunningMeanStd(shape=(dim_belief))
+        self.norm_task = self.args.norm_task_for_policy and (dim_task is not None)
+        if self.pass_task_to_policy and self.norm_task:
+            self.task_rms = utl.RunningMeanStd(shape=(dim_task))
 
-#         curr_input_dim = dim_state * int(self.pass_state_to_policy) + \
-#                          dim_latent * int(self.pass_latent_to_policy) + \
-#                          dim_belief * int(self.pass_belief_to_policy) + \
-#                          dim_task * int(self.pass_task_to_policy)
-#         # initialise encoders for separate inputs
-#         self.use_state_encoder = self.args.policy_state_embedding_dim is not None
-#         if self.pass_state_to_policy and self.use_state_encoder:
-#             self.state_encoder = utl.FeatureExtractor(dim_state, self.args.policy_state_embedding_dim, self.activation_function)
-#             curr_input_dim = curr_input_dim - dim_state + self.args.policy_state_embedding_dim
-#         self.use_latent_encoder = self.args.policy_latent_embedding_dim is not None
-#         if self.pass_latent_to_policy and self.use_latent_encoder:
-#             self.latent_encoder = utl.FeatureExtractor(dim_latent, self.args.policy_latent_embedding_dim, self.activation_function)
-#             curr_input_dim = curr_input_dim - dim_latent + self.args.policy_latent_embedding_dim
-#         self.use_belief_encoder = self.args.policy_belief_embedding_dim is not None
-#         if self.pass_belief_to_policy and self.use_belief_encoder:
-#             self.belief_encoder = utl.FeatureExtractor(dim_belief, self.args.policy_belief_embedding_dim, self.activation_function)
-#             curr_input_dim = curr_input_dim - dim_belief + self.args.policy_belief_embedding_dim
-#         self.use_task_encoder = self.args.policy_task_embedding_dim is not None
-#         if self.pass_task_to_policy and self.use_task_encoder:
-#             self.task_encoder = utl.FeatureExtractor(dim_task, self.args.policy_task_embedding_dim, self.activation_function)
-#             curr_input_dim = curr_input_dim - dim_task + self.args.policy_task_embedding_dim
+        curr_input_dim = dim_state * int(self.pass_state_to_policy) + \
+                         dim_latent * int(self.pass_latent_to_policy) + \
+                         dim_belief * int(self.pass_belief_to_policy) + \
+                         dim_task * int(self.pass_task_to_policy)
+        # initialise encoders for separate inputs
+        self.use_state_encoder = self.args.policy_state_embedding_dim is not None
+        if self.pass_state_to_policy and self.use_state_encoder:
+            self.state_encoder = utl.FeatureExtractor(dim_state, self.args.policy_state_embedding_dim, self.activation_function)
+            curr_input_dim = curr_input_dim - dim_state + self.args.policy_state_embedding_dim
+        self.use_latent_encoder = self.args.policy_latent_embedding_dim is not None
+        if self.pass_latent_to_policy and self.use_latent_encoder:
+            self.latent_encoder = utl.FeatureExtractor(dim_latent, self.args.policy_latent_embedding_dim, self.activation_function)
+            curr_input_dim = curr_input_dim - dim_latent + self.args.policy_latent_embedding_dim
+        self.use_belief_encoder = self.args.policy_belief_embedding_dim is not None
+        if self.pass_belief_to_policy and self.use_belief_encoder:
+            self.belief_encoder = utl.FeatureExtractor(dim_belief, self.args.policy_belief_embedding_dim, self.activation_function)
+            curr_input_dim = curr_input_dim - dim_belief + self.args.policy_belief_embedding_dim
+        self.use_task_encoder = self.args.policy_task_embedding_dim is not None
+        if self.pass_task_to_policy and self.use_task_encoder:
+            self.task_encoder = utl.FeatureExtractor(dim_task, self.args.policy_task_embedding_dim, self.activation_function)
+            curr_input_dim = curr_input_dim - dim_task + self.args.policy_task_embedding_dim
 
-#         # initialise actor and critic
-#         hidden_layers = [int(h) for h in hidden_layers]
-#         self.actor_layers = nn.ModuleList()
-#         self.critic_layers = nn.ModuleList()
-#         for i in range(len(hidden_layers)):
-#             fc = init_(nn.Linear(curr_input_dim, hidden_layers[i]))
-#             self.actor_layers.append(fc)
-#             fc = init_(nn.Linear(curr_input_dim, hidden_layers[i]))
-#             self.critic_layers.append(fc)
-#             curr_input_dim = hidden_layers[i]
-#         self.critic_linear = nn.Linear(hidden_layers[-1], 1)
+        # initialise actor and critic
+        hidden_layers = [int(h) for h in hidden_layers]
+        self.actor_layers = nn.ModuleList()
+        self.critic_layers = nn.ModuleList()
+        for i in range(len(hidden_layers)):
+            fc = init_(nn.Linear(curr_input_dim, hidden_layers[i]))
+            self.actor_layers.append(fc)
+            fc = init_(nn.Linear(curr_input_dim, hidden_layers[i]))
+            self.critic_layers.append(fc)
+            curr_input_dim = hidden_layers[i]
+        self.critic_linear = nn.Linear(hidden_layers[-1], 1)
 
-#         # output distributions of the policy
-#         if action_space.__class__.__name__ == "Discrete":
-#             num_outputs = action_space.n
-#             self.dist = Categorical(hidden_layers[-1], num_outputs)
-#         elif action_space.__class__.__name__ == "Box":
-#             num_outputs = action_space.shape[0]
-#             self.dist = DiagGaussian(hidden_layers[-1], num_outputs, init_std)
-#         else:
-#             raise NotImplementedError
+        # output distributions of the policy
+        if action_space.__class__.__name__ == "Discrete":
+            num_outputs = action_space.n
+            self.dist = Categorical(hidden_layers[-1], num_outputs)
+        elif action_space.__class__.__name__ == "Box":
+            num_outputs = action_space.shape[0]
+            self.dist = DiagGaussian(hidden_layers[-1], num_outputs, init_std)
+        else:
+            raise NotImplementedError
 
 #     def get_actor_params(self):
 #         return [*self.actor.parameters(), *self.dist.parameters()]
@@ -253,73 +253,73 @@ class Policy(nn.Module):
 #         return value, action_log_probs, dist_entropy
 
 
-# FixedCategorical = torch.distributions.Categorical
+FixedCategorical = torch.distributions.Categorical
 
-# old_sample = FixedCategorical.sample
-# FixedCategorical.sample = lambda self: old_sample(self).unsqueeze(-1)
+old_sample = FixedCategorical.sample
+FixedCategorical.sample = lambda self: old_sample(self).unsqueeze(-1)
 
-# log_prob_cat = FixedCategorical.log_prob
-# FixedCategorical.log_probs = lambda self, actions: log_prob_cat(self, actions.squeeze(-1)).unsqueeze(-1)
+log_prob_cat = FixedCategorical.log_prob
+FixedCategorical.log_probs = lambda self, actions: log_prob_cat(self, actions.squeeze(-1)).unsqueeze(-1)
 
-# FixedCategorical.mode = lambda self: self.probs.argmax(dim=-1, keepdim=True)
+FixedCategorical.mode = lambda self: self.probs.argmax(dim=-1, keepdim=True)
 
-# FixedNormal = torch.distributions.Normal
-# log_prob_normal = FixedNormal.log_prob
-# FixedNormal.log_probs = lambda self, actions: log_prob_normal(self, actions).sum(-1, keepdim=True)
+FixedNormal = torch.distributions.Normal
+log_prob_normal = FixedNormal.log_prob
+FixedNormal.log_probs = lambda self, actions: log_prob_normal(self, actions).sum(-1, keepdim=True)
 
-# entropy = FixedNormal.entropy
-# FixedNormal.entropy = lambda self: entropy(self).sum(-1)
+entropy = FixedNormal.entropy
+FixedNormal.entropy = lambda self: entropy(self).sum(-1)
 
-# FixedNormal.mode = lambda self: self.mean
-
-
-# def init(module, weight_init, bias_init, gain=1.0):
-#     weight_init(module.weight.data, gain=gain)
-#     bias_init(module.bias.data)
-#     return module
+FixedNormal.mode = lambda self: self.mean
 
 
-# # https://github.com/openai/baselines/blob/master/baselines/common/tf_util.py#L87
-# def init_normc_(weight, gain=1):
-#     weight.normal_(0, 1)
-#     weight *= gain / torch.sqrt(weight.pow(2).sum(1, keepdim=True))
+def init(module, weight_init, bias_init, gain=1.0):
+    weight_init(module.weight.data, gain=gain)
+    bias_init(module.bias.data)
+    return module
 
 
-# class Categorical(nn.Module):
-#     def __init__(self, num_inputs, num_outputs):
-#         super(Categorical, self).__init__()
-
-#         init_ = lambda m: init(m,
-#                                nn.init.orthogonal_,
-#                                lambda x: nn.init.constant_(x, 0),
-#                                gain=0.01)
-
-#         self.linear = init_(nn.Linear(num_inputs, num_outputs))
-
-#     def forward(self, x):
-#         x = self.linear(x)
-#         return FixedCategorical(logits=x)
+# https://github.com/openai/baselines/blob/master/baselines/common/tf_util.py#L87
+def init_normc_(weight, gain=1):
+    weight.normal_(0, 1)
+    weight *= gain / torch.sqrt(weight.pow(2).sum(1, keepdim=True))
 
 
-# class DiagGaussian(nn.Module):
-#     def __init__(self, num_inputs, num_outputs, init_std):
-#         super(DiagGaussian, self).__init__()
+class Categorical(nn.Module):
+    def __init__(self, num_inputs, num_outputs):
+        super(Categorical, self).__init__()
 
-#         init_ = lambda m: init(m,
-#                                init_normc_,
-#                                lambda x: nn.init.constant_(x, 0))
+        init_ = lambda m: init(m,
+                               nn.init.orthogonal_,
+                               lambda x: nn.init.constant_(x, 0),
+                               gain=0.01)
 
-#         self.fc_mean = init_(nn.Linear(num_inputs, num_outputs))
-#         self.logstd = nn.Parameter(np.log(torch.zeros(num_outputs) + init_std))
-#         self.min_std = torch.tensor([1e-6]).to(device)
+        self.linear = init_(nn.Linear(num_inputs, num_outputs))
 
-#     def forward(self, x):
+    def forward(self, x):
+        x = self.linear(x)
+        return FixedCategorical(logits=x)
 
-#         action_mean = self.fc_mean(x)
-#         std = torch.max(self.min_std, self.logstd.exp())
-#         dist = FixedNormal(action_mean, std)
 
-#         return dist
+class DiagGaussian(nn.Module):
+    def __init__(self, num_inputs, num_outputs, init_std):
+        super(DiagGaussian, self).__init__()
+
+        init_ = lambda m: init(m,
+                               init_normc_,
+                               lambda x: nn.init.constant_(x, 0))
+
+        self.fc_mean = init_(nn.Linear(num_inputs, num_outputs))
+        self.logstd = nn.Parameter(np.log(torch.zeros(num_outputs) + init_std))
+        self.min_std = torch.tensor([1e-6]).to(device)
+
+    def forward(self, x):
+
+        action_mean = self.fc_mean(x)
+        std = torch.max(self.min_std, self.logstd.exp())
+        dist = FixedNormal(action_mean, std)
+
+        return dist
 
 
 # class AddBias(nn.Module):

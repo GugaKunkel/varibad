@@ -5,9 +5,8 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-# from algorithms.a2c import A2C
 from algorithms.online_storage import OnlineStorage
-# from algorithms.ppo import PPO
+from algorithms.ppo import PPO
 from environments.parallel_envs import make_vec_envs
 from models.policy import Policy
 # from utils import evaluation as utl_eval
@@ -99,61 +98,59 @@ class MetaLearner:
         # initialise policy network
         policy_net = Policy(
             args=self.args,
-#             #
-#             pass_state_to_policy=self.args.pass_state_to_policy,
-#             pass_latent_to_policy=self.args.pass_latent_to_policy,
-#             pass_belief_to_policy=self.args.pass_belief_to_policy,
-#             pass_task_to_policy=self.args.pass_task_to_policy,
-#             dim_state=self.args.state_dim,
-#             dim_latent=self.args.latent_dim * 2,
-#             dim_belief=self.args.belief_dim,
-#             dim_task=self.args.task_dim,
-#             #
-#             hidden_layers=self.args.policy_layers,
-#             activation_function=self.args.policy_activation_function,
-#             policy_initialisation=self.args.policy_initialisation,
-#             #
-#             action_space=self.envs.action_space,
-#             init_std=self.args.policy_init_std,
+            #
+            pass_state_to_policy=self.args.pass_state_to_policy,
+            pass_latent_to_policy=self.args.pass_latent_to_policy,
+            pass_belief_to_policy=self.args.pass_belief_to_policy,
+            pass_task_to_policy=self.args.pass_task_to_policy,
+            dim_state=self.args.state_dim,
+            dim_latent=self.args.latent_dim * 2,
+            dim_belief=self.args.belief_dim,
+            dim_task=self.args.task_dim,
+            #
+            hidden_layers=self.args.policy_layers,
+            activation_function=self.args.policy_activation_function,
+            policy_initialisation=self.args.policy_initialisation,
+            #
+            action_space=self.envs.action_space,
+            init_std=self.args.policy_init_std,
         ).to(device)
-        # policy = PPO(
-        #     self.args,
-        #     policy_net,
-        #     self.args.policy_value_loss_coef,
-        #     self.args.policy_entropy_coef,
-        #     policy_optimiser=self.args.policy_optimiser,
-        #     policy_anneal_lr=self.args.policy_anneal_lr,
-        #     train_steps=self.num_updates,
-        #     lr=self.args.lr_policy,
-        #     eps=self.args.policy_eps,
-        #     ppo_epoch=self.args.ppo_num_epochs,
-        #     num_mini_batch=self.args.ppo_num_minibatch,
-        #     use_huber_loss=self.args.ppo_use_huberloss,
-        #     use_clipped_value_loss=self.args.ppo_use_clipped_value_loss,
-        #     clip_param=self.args.ppo_clip_param,
-        #     optimiser_vae=self.vae.optimiser_vae,
-        # )
-#         return policy
+        policy = PPO(
+            self.args,
+            policy_net,
+            self.args.policy_value_loss_coef,
+            self.args.policy_entropy_coef,
+            train_steps=self.num_updates,
+            lr=self.args.lr_policy,
+            eps=self.args.policy_eps,
+            ppo_epoch=self.args.ppo_num_epochs,
+            num_mini_batch=self.args.ppo_num_minibatch,
+            use_huber_loss=self.args.ppo_use_huberloss,
+            use_clipped_value_loss=self.args.ppo_use_clipped_value_loss,
+            clip_param=self.args.ppo_clip_param,
+            optimiser_vae=self.vae.optimiser_vae,
+        )
+        return policy
 
     def train(self):
         """ Main Meta-Training loop """
         start_time = time.time()
 
-#         # reset environments
-#         prev_state, belief, task = utl.reset_env(self.envs, self.args)
+        # reset environments
+        prev_state, belief, task = utl.reset_env(self.envs, self.args)
 
-#         # insert initial observation / embeddings to rollout storage
-#         self.policy_storage.prev_state[0].copy_(prev_state)
+        # insert initial observation / embeddings to rollout storage
+        self.policy_storage.prev_state[0].copy_(prev_state)
 
-#         # log once before training
-#         with torch.no_grad():
-#             self.log(None, None, start_time)
+        # log once before training
+        with torch.no_grad():
+            self.log(None, None, start_time)
 
-#         for self.iter_idx in range(self.num_updates):
+        for self.iter_idx in range(self.num_updates):
 
-#             # First, re-compute the hidden states given the current rollouts (since the VAE might've changed)
-#             with torch.no_grad():
-#                 latent_sample, latent_mean, latent_logvar, hidden_state = self.encode_running_trajectory()
+            # First, re-compute the hidden states given the current rollouts (since the VAE might've changed)
+            with torch.no_grad():
+                latent_sample, latent_mean, latent_logvar, hidden_state = self.encode_running_trajectory()
 
 #             # add this initial hidden state to the policy storage
 #             assert len(self.policy_storage.latent_mean) == 0  # make sure we emptied buffers
@@ -268,22 +265,22 @@ class MetaLearner:
 
 #         self.envs.close()
 
-#     def encode_running_trajectory(self):
-#         """
-#         (Re-)Encodes (for each process) the entire current trajectory.
-#         Returns sample/mean/logvar and hidden state (if applicable) for the current timestep.
-#         :return:
-#         """
+    def encode_running_trajectory(self):
+        """
+        (Re-)Encodes (for each process) the entire current trajectory.
+        Returns sample/mean/logvar and hidden state (if applicable) for the current timestep.
+        :return:
+        """
 
-#         # for each process, get the current batch (zero-padded obs/act/rew + length indicators)
-#         prev_obs, next_obs, act, rew, lens = self.vae.rollout_storage.get_running_batch()
+        # for each process, get the current batch (zero-padded obs/act/rew + length indicators)
+        prev_obs, next_obs, act, rew, lens = self.vae.rollout_storage.get_running_batch()
 
-#         # get embedding - will return (1+sequence_len) * batch * input_size -- includes the prior!
-#         all_latent_samples, all_latent_means, all_latent_logvars, all_hidden_states = self.vae.encoder(actions=act,
-#                                                                                                        states=next_obs,
-#                                                                                                        rewards=rew,
-#                                                                                                        hidden_state=None,
-#                                                                                                        return_prior=True)
+        # get embedding - will return (1+sequence_len) * batch * input_size -- includes the prior!
+        all_latent_samples, all_latent_means, all_latent_logvars, all_hidden_states = self.vae.encoder(actions=act,
+                                                                                                       states=next_obs,
+                                                                                                       rewards=rew,
+                                                                                                       hidden_state=None,
+                                                                                                       return_prior=True)
 
 #         # get the embedding / hidden state of the current time step (need to do this since we zero-padded)
 #         latent_sample = (torch.stack([all_latent_samples[lens[i]][i] for i in range(len(lens))])).to(device)
