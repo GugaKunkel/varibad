@@ -75,7 +75,8 @@ def evaluate(args,
                                               deterministic=True)
 
             # observe reward and next obs
-            [state, belief, task], (rew_raw, rew_normalised), done, infos = utl.env_step(envs, action, args)
+            [state, belief, task], (rew_raw, rew_normalised), terminated, truncated, infos = utl.env_step(envs, action, args)
+            done = np.logical_or(terminated, truncated)
             done_mdp = [info['done_mdp'] for info in infos]
 
             if encoder is not None:
@@ -237,7 +238,8 @@ def get_test_rollout(args, env, policy, encoder=None):
             action = action.reshape((1, *action.shape))
 
             # observe reward and next obs
-            (state, belief, task), (rew_raw, rew_normalised), done, infos = utl.env_step(env, action, args)
+            [state, belief, task], (rew_raw, rew_normalised), terminated, truncated, infos = utl.env_step(...)
+            done = np.logical_or(terminated, truncated)
             state = state.reshape((1, -1)).to(device)
             task = task.view(-1) if task is not None else None
 
