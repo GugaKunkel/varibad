@@ -9,7 +9,6 @@ import torch
 # get configs
 from config.gridworld import \
     args_grid_belief_oracle, args_grid_rl2, args_grid_varibad
-from environments.parallel_envs import make_vec_envs
 from learner import Learner
 from metalearner import MetaLearner
 
