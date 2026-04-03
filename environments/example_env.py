@@ -41,7 +41,6 @@ class ExampleEnv(gym.Env):
                             encoder=None,
                             reward_decoder=None,
                             state_decoder=None,
-                            task_decoder=None,
                             image_folder=None,
                             **kwargs):
         """

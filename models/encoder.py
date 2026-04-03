@@ -69,9 +69,6 @@ class RNNEncoder(nn.Module):
         hidden_state = torch.zeros((1, batch_size, self.hidden_size), requires_grad=True).to(device)
 
         h = hidden_state
-        # forward through fully connected layers after GRU
-        for i in range(len(self.fc_after_gru)):
-            h = F.relu(self.fc_after_gru[i](h))
 
         # outputs
         latent_mean = self.fc_mu(h)

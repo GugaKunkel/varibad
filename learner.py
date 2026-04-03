@@ -10,7 +10,6 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-from algorithms.a2c import A2C
 from algorithms.online_storage import OnlineStorage
 from algorithms.ppo import PPO
 from environments.parallel_envs import make_vec_envs
@@ -121,39 +120,22 @@ class Learner:
             action_space=self.envs.action_space,
             init_std=self.args.policy_init_std,
         ).to(device)
-
-        # initialise policy trainer
-        if self.args.policy == 'a2c':
-            policy = A2C(
-                self.args,
-                policy_net,
-                self.args.policy_value_loss_coef,
-                self.args.policy_entropy_coef,
-                policy_optimiser=self.args.policy_optimiser,
-                policy_anneal_lr=self.args.policy_anneal_lr,
-                train_steps=self.num_updates,
-                lr=self.args.lr_policy,
-                eps=self.args.policy_eps,
-            )
-        elif self.args.policy == 'ppo':
-            policy = PPO(
-                self.args,
-                policy_net,
-                self.args.policy_value_loss_coef,
-                self.args.policy_entropy_coef,
-                policy_optimiser=self.args.policy_optimiser,
-                policy_anneal_lr=self.args.policy_anneal_lr,
-                train_steps=self.num_updates,
-                lr=self.args.lr_policy,
-                eps=self.args.policy_eps,
-                ppo_epoch=self.args.ppo_num_epochs,
-                num_mini_batch=self.args.ppo_num_minibatch,
-                use_huber_loss=self.args.ppo_use_huberloss,
-                use_clipped_value_loss=self.args.ppo_use_clipped_value_loss,
-                clip_param=self.args.ppo_clip_param,
-            )
-        else:
-            raise NotImplementedError
+        policy = PPO(
+            self.args,
+            policy_net,
+            self.args.policy_value_loss_coef,
+            self.args.policy_entropy_coef,
+            policy_optimiser=self.args.policy_optimiser,
+            policy_anneal_lr=self.args.policy_anneal_lr,
+            train_steps=self.num_updates,
+            lr=self.args.lr_policy,
+            eps=self.args.policy_eps,
+            ppo_epoch=self.args.ppo_num_epochs,
+            num_mini_batch=self.args.ppo_num_minibatch,
+            use_huber_loss=self.args.ppo_use_huberloss,
+            use_clipped_value_loss=self.args.ppo_use_clipped_value_loss,
+            clip_param=self.args.ppo_clip_param,
+        )
 
         return policy
 

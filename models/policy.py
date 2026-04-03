@@ -135,122 +135,122 @@ class Policy(nn.Module):
         else:
             raise NotImplementedError
 
-#     def get_actor_params(self):
-#         return [*self.actor.parameters(), *self.dist.parameters()]
+    def get_actor_params(self):
+        return [*self.actor.parameters(), *self.dist.parameters()]
 
-#     def get_critic_params(self):
-#         return [*self.critic.parameters(), *self.critic_linear.parameters()]
+    def get_critic_params(self):
+        return [*self.critic.parameters(), *self.critic_linear.parameters()]
 
-#     def forward_actor(self, inputs):
-#         h = inputs
-#         for i in range(len(self.actor_layers)):
-#             h = self.actor_layers[i](h)
-#             h = self.activation_function(h)
-#         return h
+    def forward_actor(self, inputs):
+        h = inputs
+        for i in range(len(self.actor_layers)):
+            h = self.actor_layers[i](h)
+            h = self.activation_function(h)
+        return h
 
-#     def forward_critic(self, inputs):
-#         h = inputs
-#         for i in range(len(self.critic_layers)):
-#             h = self.critic_layers[i](h)
-#             h = self.activation_function(h)
-#         return h
+    def forward_critic(self, inputs):
+        h = inputs
+        for i in range(len(self.critic_layers)):
+            h = self.critic_layers[i](h)
+            h = self.activation_function(h)
+        return h
 
-#     def forward(self, state, latent, belief, task):
+    def forward(self, state, latent, belief, task):
 
-#         # handle inputs (normalise + embed)
+        # handle inputs (normalise + embed)
 
-#         if self.pass_state_to_policy:
-#             if self.norm_state:
-#                 state = (state - self.state_rms.mean) / torch.sqrt(self.state_rms.var + 1e-8)
-#             if self.use_state_encoder:
-#                 state = self.state_encoder(state)
-#         else:
-#             state = torch.zeros(0, ).to(device)
-#         if self.pass_latent_to_policy:
-#             if self.norm_latent:
-#                 latent = (latent - self.latent_rms.mean) / torch.sqrt(self.latent_rms.var + 1e-8)
-#             if self.use_latent_encoder:
-#                 latent = self.latent_encoder(latent)
-#         else:
-#             latent = torch.zeros(0, ).to(device)
-#         if self.pass_belief_to_policy:
-#             if self.norm_belief:
-#                 belief = (belief - self.belief_rms.mean) / torch.sqrt(self.belief_rms.var + 1e-8)
-#             if self.use_belief_encoder:
-#                 belief = self.belief_encoder(belief.float())
-#         else:
-#             belief = torch.zeros(0, ).to(device)
-#         if self.pass_task_to_policy:
-#             if self.norm_task:
-#                 task = (task - self.task_rms.mean) / torch.sqrt(self.task_rms.var + 1e-8)
-#             if self.use_task_encoder:
-#                 task = self.task_encoder(task.float())
-#         else:
-#             task = torch.zeros(0, ).to(device)
+        if self.pass_state_to_policy:
+            if self.norm_state:
+                state = (state - self.state_rms.mean) / torch.sqrt(self.state_rms.var + 1e-8)
+            if self.use_state_encoder:
+                state = self.state_encoder(state)
+        else:
+            state = torch.zeros(0, ).to(device)
+        if self.pass_latent_to_policy:
+            if self.norm_latent:
+                latent = (latent - self.latent_rms.mean) / torch.sqrt(self.latent_rms.var + 1e-8)
+            if self.use_latent_encoder:
+                latent = self.latent_encoder(latent)
+        else:
+            latent = torch.zeros(0, ).to(device)
+        if self.pass_belief_to_policy:
+            if self.norm_belief:
+                belief = (belief - self.belief_rms.mean) / torch.sqrt(self.belief_rms.var + 1e-8)
+            if self.use_belief_encoder:
+                belief = self.belief_encoder(belief.float())
+        else:
+            belief = torch.zeros(0, ).to(device)
+        if self.pass_task_to_policy:
+            if self.norm_task:
+                task = (task - self.task_rms.mean) / torch.sqrt(self.task_rms.var + 1e-8)
+            if self.use_task_encoder:
+                task = self.task_encoder(task.float())
+        else:
+            task = torch.zeros(0, ).to(device)
 
-#         # concatenate inputs
-#         inputs = torch.cat((state, latent, belief, task), dim=-1)
+        # concatenate inputs
+        inputs = torch.cat((state, latent, belief, task), dim=-1)
 
-#         # forward through critic/actor part
-#         hidden_critic = self.forward_critic(inputs)
-#         hidden_actor = self.forward_actor(inputs)
-#         return self.critic_linear(hidden_critic), hidden_actor
+        # forward through critic/actor part
+        hidden_critic = self.forward_critic(inputs)
+        hidden_actor = self.forward_actor(inputs)
+        return self.critic_linear(hidden_critic), hidden_actor
 
-#     def act(self, state, latent, belief, task, deterministic=False):
-#         """
-#         Returns the (raw) actions and their value.
-#         """
-#         value, actor_features = self.forward(state=state, latent=latent, belief=belief, task=task)
-#         dist = self.dist(actor_features)
-#         if deterministic:
-#             if isinstance(dist, FixedCategorical):
-#                 action = dist.mode()
-#             else:
-#                 action = dist.mean
-#         else:
-#             action = dist.sample()
+    def act(self, state, latent, belief, task, deterministic=False):
+        """
+        Returns the (raw) actions and their value.
+        """
+        value, actor_features = self.forward(state=state, latent=latent, belief=belief, task=task)
+        dist = self.dist(actor_features)
+        if deterministic:
+            if isinstance(dist, FixedCategorical):
+                action = dist.mode()
+            else:
+                action = dist.mean
+        else:
+            action = dist.sample()
 
-#         return value, action
+        return value, action
 
-#     def get_value(self, state, latent, belief, task):
-#         value, _ = self.forward(state, latent, belief, task)
-#         return value
+    def get_value(self, state, latent, belief, task):
+        value, _ = self.forward(state, latent, belief, task)
+        return value
 
-#     def update_rms(self, args, policy_storage):
-#         """ Update normalisation parameters for inputs with current data """
-#         if self.pass_state_to_policy and self.norm_state:
-#             self.state_rms.update(policy_storage.prev_state[:-1])
-#         if self.pass_latent_to_policy and self.norm_latent:
-#             latent = utl.get_latent_for_policy(args,
-#                                                torch.cat(policy_storage.latent_samples[:-1]),
-#                                                torch.cat(policy_storage.latent_mean[:-1]),
-#                                                torch.cat(policy_storage.latent_logvar[:-1])
-#                                                )
-#             self.latent_rms.update(latent)
-#         if self.pass_belief_to_policy and self.norm_belief:
-#             self.belief_rms.update(policy_storage.beliefs[:-1])
-#         if self.pass_task_to_policy and self.norm_task:
-#             self.task_rms.update(policy_storage.tasks[:-1])
+    def update_rms(self, args, policy_storage):
+        """ Update normalisation parameters for inputs with current data """
+        if self.pass_state_to_policy and self.norm_state:
+            self.state_rms.update(policy_storage.prev_state[:-1])
+        if self.pass_latent_to_policy and self.norm_latent:
+            latent = utl.get_latent_for_policy(args,
+                                               torch.cat(policy_storage.latent_samples[:-1]),
+                                               torch.cat(policy_storage.latent_mean[:-1]),
+                                               torch.cat(policy_storage.latent_logvar[:-1])
+                                               )
+            self.latent_rms.update(latent)
+        if self.pass_belief_to_policy and self.norm_belief:
+            self.belief_rms.update(policy_storage.beliefs[:-1])
+        if self.pass_task_to_policy and self.norm_task:
+            self.task_rms.update(policy_storage.tasks[:-1])
 
-#     def evaluate_actions(self, state, latent, belief, task, action):
+    def evaluate_actions(self, state, latent, belief, task, action):
 
-#         value, actor_features = self.forward(state, latent, belief, task)
-#         dist = self.dist(actor_features)
+        value, actor_features = self.forward(state, latent, belief, task)
+        dist = self.dist(actor_features)
 
-#         if getattr(self.args, 'norm_actions_post_sampling', False):
-#             transformation = TanhTransform(cache_size=1)
-#             dist = TanhNormal(dist, transformation)
-#             action = transformation(action)
-#             action_log_probs = dist.log_prob(action).sum(-1, keepdim=True)
-#             # empirical entropy
-#             # dist_entropy = -action_log_probs.mean()
-#             # entropy of underlying dist (isn't correct but works well in practice)
-#             dist_entropy = dist.base_dist.entropy().mean()
-#         else:
-#             action_log_probs = dist.log_probs(action)
-#             dist_entropy = dist.entropy().mean()
+        if getattr(self.args, 'norm_actions_post_sampling', False):
+            transformation = TanhTransform(cache_size=1)
+            dist = TanhNormal(dist, transformation)
+            action = transformation(action)
+            action_log_probs = dist.log_prob(action).sum(-1, keepdim=True)
+            # empirical entropy
+            # dist_entropy = -action_log_probs.mean()
+            # entropy of underlying dist (isn't correct but works well in practice)
+            dist_entropy = dist.base_dist.entropy().mean()
+        else:
+            action_log_probs = dist.log_probs(action)
+            dist_entropy = dist.entropy().mean()
 
-#         return value, action_log_probs, dist_entropy
+        return value, action_log_probs, dist_entropy
 
 
 FixedCategorical = torch.distributions.Categorical
@@ -322,15 +322,15 @@ class DiagGaussian(nn.Module):
         return dist
 
 
-# class AddBias(nn.Module):
-#     def __init__(self, bias):
-#         super(AddBias, self).__init__()
-#         self._bias = nn.Parameter(bias.unsqueeze(1))
+class AddBias(nn.Module):
+    def __init__(self, bias):
+        super(AddBias, self).__init__()
+        self._bias = nn.Parameter(bias.unsqueeze(1))
 
-#     def forward(self, x):
-#         if x.dim() == 2:
-#             bias = self._bias.t().reshape(1, -1)
-#         else:
-#             bias = self._bias.t().reshape(1, -1, 1, 1)
+    def forward(self, x):
+        if x.dim() == 2:
+            bias = self._bias.t().reshape(1, -1)
+        else:
+            bias = self._bias.t().reshape(1, -1, 1, 1)
 
-#         return x + bias
+        return x + bias
