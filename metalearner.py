@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 # from algorithms.a2c import A2C
-# from algorithms.online_storage import OnlineStorage
+from algorithms.online_storage import OnlineStorage
 # from algorithms.ppo import PPO
 from environments.parallel_envs import make_vec_envs
 # from models.policy import Policy
@@ -79,21 +79,21 @@ class MetaLearner:
 
         # initialise VAE and policy
         self.vae = VaribadVAE(self.args, self.logger, lambda: self.iter_idx)
-#         self.policy_storage = self.initialise_policy_storage()
+        self.policy_storage = self.initialise_policy_storage()
 #         self.policy = self.initialise_policy()
 
-#     def initialise_policy_storage(self):
-#         return OnlineStorage(args=self.args,
-#                              num_steps=self.args.policy_num_steps,
-#                              num_processes=self.args.num_processes,
-#                              state_dim=self.args.state_dim,
-#                              latent_dim=self.args.latent_dim,
-#                              belief_dim=self.args.belief_dim,
-#                              task_dim=self.args.task_dim,
-#                              action_space=self.args.action_space,
-#                              hidden_size=self.args.encoder_gru_hidden_size,
-#                              normalise_rewards=self.args.norm_rew_for_policy,
-#                              )
+    def initialise_policy_storage(self):
+        return OnlineStorage(args=self.args,
+                             num_steps=self.args.policy_num_steps,
+                             num_processes=self.args.num_processes,
+                             state_dim=self.args.state_dim,
+                             latent_dim=self.args.latent_dim,
+                             belief_dim=self.args.belief_dim,
+                             task_dim=self.args.task_dim,
+                             action_space=self.args.action_space,
+                             hidden_size=self.args.encoder_gru_hidden_size,
+                             normalise_rewards=self.args.norm_rew_for_policy,
+                             )
 
 #     def initialise_policy(self):
 

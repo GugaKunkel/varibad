@@ -11,10 +11,6 @@ from utils import helpers as utl
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-def _flatten_helper(T, N, _tensor):
-    return _tensor.reshape(T * N, *_tensor.size()[2:])
-
-
 class OnlineStorage(object):
     def __init__(self,
                  args, num_steps, num_processes,

@@ -9,7 +9,7 @@ import torch
 from models.decoder import StateTransitionDecoder, RewardDecoder
 from models.encoder import RNNEncoder
 from utils.helpers import get_task_dim, get_num_tasks
-# from utils.storage_vae import RolloutStorageVAE
+from utils.storage_vae import RolloutStorageVAE
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -47,28 +47,27 @@ class VaribadVAE:
         # initialise the decoders (returns None for unused decoders)
         self.state_decoder, self.reward_decoder, self.task_decoder = self.initialise_decoder()
 
-#         # initialise rollout storage for the VAE update
-#         # (this differs from the data that the on-policy RL algorithm uses)
-#         self.rollout_storage = RolloutStorageVAE(num_processes=self.args.num_processes,
-#                                                  max_trajectory_len=self.args.max_trajectory_len,
-#                                                  zero_pad=True,
-#                                                  max_num_rollouts=self.args.size_vae_buffer,
-#                                                  state_dim=self.args.state_dim,
-#                                                  action_dim=self.args.action_dim,
-#                                                  vae_buffer_add_thresh=self.args.vae_buffer_add_thresh,
-#                                                  task_dim=self.task_dim
-#                                                  )
+        # initialise rollout storage for the VAE update
+        # (this differs from the data that the on-policy RL algorithm uses)
+        self.rollout_storage = RolloutStorageVAE(num_processes=self.args.num_processes,
+                                                 max_trajectory_len=self.args.max_trajectory_len,
+                                                 zero_pad=True,
+                                                 max_num_rollouts=self.args.size_vae_buffer,
+                                                 state_dim=self.args.state_dim,
+                                                 action_dim=self.args.action_dim,
+                                                 vae_buffer_add_thresh=self.args.vae_buffer_add_thresh,
+                                                 task_dim=self.task_dim
+                                                 )
 
-#         # initalise optimiser for the encoder and decoders
-#         decoder_params = []
-#         if not self.args.disable_decoder:
-#             if self.args.decode_reward:
-#                 decoder_params.extend(self.reward_decoder.parameters())
-#             if self.args.decode_state:
-#                 decoder_params.extend(self.state_decoder.parameters())
-#             if self.args.decode_task:
-#                 decoder_params.extend(self.task_decoder.parameters())
-#         self.optimiser_vae = torch.optim.Adam([*self.encoder.parameters(), *decoder_params], lr=self.args.lr_vae)
+        # initalise optimiser for the encoder and decoders
+        decoder_params = []
+        if self.args.decode_reward:
+            decoder_params.extend(self.reward_decoder.parameters())
+        if self.args.decode_state:
+            decoder_params.extend(self.state_decoder.parameters())
+        if self.args.decode_task:
+            decoder_params.extend(self.task_decoder.parameters())
+        self.optimiser_vae = torch.optim.Adam([*self.encoder.parameters(), *decoder_params], lr=self.args.lr_vae)
 
     def initialise_decoder(self):
         """ Initialises and returns the (state/reward/task) decoder as specified in self.args """
