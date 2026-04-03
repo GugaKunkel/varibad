@@ -163,21 +163,18 @@ class VaribadVAE:
 
     def compute_kl_loss(self, latent_mean, latent_logvar, elbo_indices):
         # -- KL divergence
-        if self.args.kl_to_gauss_prior:
-            kl_divergences = (- 0.5 * (1 + latent_logvar - latent_mean.pow(2) - latent_logvar.exp()).sum(dim=-1))
-        else:
-            gauss_dim = latent_mean.shape[-1]
-            # add the gaussian prior
-            all_means = torch.cat((torch.zeros(1, *latent_mean.shape[1:]).to(device), latent_mean))
-            all_logvars = torch.cat((torch.zeros(1, *latent_logvar.shape[1:]).to(device), latent_logvar))
-            # https://arxiv.org/pdf/1811.09975.pdf
-            # KL(N(mu,E)||N(m,S)) = 0.5 * (log(|S|/|E|) - K + tr(S^-1 E) + (m-mu)^T S^-1 (m-mu)))
-            mu = all_means[1:]
-            m = all_means[:-1]
-            logE = all_logvars[1:]
-            logS = all_logvars[:-1]
-            kl_divergences = 0.5 * (torch.sum(logS, dim=-1) - torch.sum(logE, dim=-1) - gauss_dim + torch.sum(
-                1 / torch.exp(logS) * torch.exp(logE), dim=-1) + ((m - mu) / torch.exp(logS) * (m - mu)).sum(dim=-1))
+        gauss_dim = latent_mean.shape[-1]
+        # add the gaussian prior
+        all_means = torch.cat((torch.zeros(1, *latent_mean.shape[1:]).to(device), latent_mean))
+        all_logvars = torch.cat((torch.zeros(1, *latent_logvar.shape[1:]).to(device), latent_logvar))
+        # https://arxiv.org/pdf/1811.09975.pdf
+        # KL(N(mu,E)||N(m,S)) = 0.5 * (log(|S|/|E|) - K + tr(S^-1 E) + (m-mu)^T S^-1 (m-mu)))
+        mu = all_means[1:]
+        m = all_means[:-1]
+        logE = all_logvars[1:]
+        logS = all_logvars[:-1]
+        kl_divergences = 0.5 * (torch.sum(logS, dim=-1) - torch.sum(logE, dim=-1) - gauss_dim + torch.sum(
+            1 / torch.exp(logS) * torch.exp(logE), dim=-1) + ((m - mu) / torch.exp(logS) * (m - mu)).sum(dim=-1))
 
         # returns, for each ELBO_t term, one KL (so H+1 kl's)
         if elbo_indices is not None:
@@ -211,10 +208,7 @@ class VaribadVAE:
         vae_rewards = vae_rewards[:max_traj_len]
 
         # take one sample for each ELBO term
-        if not self.args.disable_stochasticity_in_latent:
-            latent_samples = self.encoder._sample_gaussian(latent_mean, latent_logvar)
-        else:
-            latent_samples = torch.cat((latent_mean, latent_logvar), dim=-1)
+        latent_samples = self.encoder._sample_gaussian(latent_mean, latent_logvar)
 
         num_elbos = latent_samples.shape[0]
         num_decodes = vae_prev_obs.shape[0]
@@ -311,19 +305,16 @@ class VaribadVAE:
             state_reconstruction_loss = 0
         task_reconstruction_loss = 0
 
-        if not self.args.disable_kl_term:
-            # compute the KL term for each ELBO term of the current trajectory
-            # shape: [num_elbo_terms] x [num_trajectories]
-            kl_loss = self.compute_kl_loss(latent_mean, latent_logvar, elbo_indices)
-            # avg/sum the elbos
-            if self.args.vae_avg_elbo_terms:
-                kl_loss = kl_loss.mean(dim=0)
-            else:
-                kl_loss = kl_loss.sum(dim=0)
-            # average across tasks
-            kl_loss = kl_loss.sum(dim=0).mean()
+        # compute the KL term for each ELBO term of the current trajectory
+        # shape: [num_elbo_terms] x [num_trajectories]
+        kl_loss = self.compute_kl_loss(latent_mean, latent_logvar, elbo_indices)
+        # avg/sum the elbos
+        if self.args.vae_avg_elbo_terms:
+            kl_loss = kl_loss.mean(dim=0)
         else:
-            kl_loss = 0
+            kl_loss = kl_loss.sum(dim=0)
+        # average across tasks
+        kl_loss = kl_loss.sum(dim=0).mean()
 
         return rew_reconstruction_loss, state_reconstruction_loss, task_reconstruction_loss, kl_loss
 
@@ -331,9 +322,6 @@ class VaribadVAE:
         """ Returns the VAE loss """
 
         if not self.rollout_storage.ready_for_update():
-            return 0
-
-        if self.args.disable_decoder and self.args.disable_kl_term:
             return 0
 
         # get a mini-batch
@@ -368,8 +356,7 @@ class VaribadVAE:
                 self.args.kl_weight * kl_loss).mean()
 
         # make sure we can compute gradients
-        if not self.args.disable_kl_term:
-            assert kl_loss.requires_grad
+        assert kl_loss.requires_grad
         if self.args.decode_reward:
             assert rew_reconstruction_loss.requires_grad
         if self.args.decode_state:
@@ -417,6 +404,5 @@ class VaribadVAE:
             if self.args.decode_task:
                 self.logger.add('vae_losses/task_reconstr_err', task_reconstruction_loss.mean(), curr_iter_idx)
 
-            if not self.args.disable_kl_term:
-                self.logger.add('vae_losses/kl', kl_loss.mean(), curr_iter_idx)
+            self.logger.add('vae_losses/kl', kl_loss.mean(), curr_iter_idx)
             self.logger.add('vae_losses/sum', elbo_loss, curr_iter_idx)

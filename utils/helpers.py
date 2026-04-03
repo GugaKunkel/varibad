@@ -7,7 +7,6 @@ from distutils.util import strtobool
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.nn import functional as F
 
 from environments.parallel_envs import make_vec_envs
 
@@ -71,15 +70,7 @@ def get_latent_for_policy(args, latent_sample=None, latent_mean=None, latent_log
     if (latent_sample is None) and (latent_mean is None) and (latent_logvar is None):
         return None
 
-    if args.add_nonlinearity_to_latent:
-        latent_sample = F.relu(latent_sample)
-        latent_mean = F.relu(latent_mean)
-        latent_logvar = F.relu(latent_logvar)
-
-    if args.sample_embeddings:
-        latent = latent_sample
-    else:
-        latent = torch.cat((latent_mean, latent_logvar), dim=-1)
+    latent = torch.cat((latent_mean, latent_logvar), dim=-1)
 
     if latent.shape[0] == 1:
         latent = latent.squeeze(0)

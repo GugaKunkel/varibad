@@ -523,11 +523,8 @@ def compute_beliefs(env, args, reward_decoder, latent_mean, latent_logvar, goal)
     num_cells = env.observation_space.high[0] + 1
     unwrapped_env = env.venv.unwrapped.envs[0]
 
-    if not args.disable_stochasticity_in_latent:
-        # take several samples fromt he latent distribution
-        samples = utl.sample_gaussian(latent_mean.view(-1), latent_logvar.view(-1), 100)
-    else:
-        samples = torch.cat((latent_mean.view(-1), latent_logvar.view(-1))).unsqueeze(0)
+    # take several samples from the latent distribution
+    samples = utl.sample_gaussian(latent_mean.view(-1), latent_logvar.view(-1), 100)
 
     # compute reward predictions for those
     rew_pred = reward_decoder(samples, None)

@@ -159,25 +159,24 @@ def visualise_behaviour(args,
                      iter_idx=iter_idx
                      )
 
-        if not (args.disable_decoder and args.disable_kl_term):
-            plot_vae_loss(args,
-                          latent_means,
-                          latent_logvars,
-                          episode_prev_obs,
-                          episode_next_obs,
-                          episode_actions,
-                          episode_rewards,
-                          episode_task,
-                          image_folder=image_folder,
-                          iter_idx=iter_idx,
-                          reward_decoder=reward_decoder,
-                          state_decoder=state_decoder,
-                          task_decoder=task_decoder,
-                          compute_task_reconstruction_loss=compute_task_reconstruction_loss,
-                          compute_rew_reconstruction_loss=compute_rew_reconstruction_loss,
-                          compute_state_reconstruction_loss=compute_state_reconstruction_loss,
-                          compute_kl_loss=compute_kl_loss,
-                          )
+        plot_vae_loss(args,
+                      latent_means,
+                      latent_logvars,
+                      episode_prev_obs,
+                      episode_next_obs,
+                      episode_actions,
+                      episode_rewards,
+                      episode_task,
+                      image_folder=image_folder,
+                      iter_idx=iter_idx,
+                      reward_decoder=reward_decoder,
+                      state_decoder=state_decoder,
+                      task_decoder=task_decoder,
+                      compute_task_reconstruction_loss=compute_task_reconstruction_loss,
+                      compute_rew_reconstruction_loss=compute_rew_reconstruction_loss,
+                      compute_state_reconstruction_loss=compute_state_reconstruction_loss,
+                      compute_kl_loss=compute_kl_loss,
+                      )
 
     env.close()
 
@@ -349,10 +348,7 @@ def plot_vae_loss(args,
                   ):
     num_rollouts = len(latent_means)
     num_episode_steps = len(latent_means[0])
-    if not args.disable_stochasticity_in_latent:
-        num_samples = 10  # how many samples to use to get an average/std ELBO loss
-    else:
-        num_samples = 1
+    num_samples = 10  # how many samples to use to get an average/std ELBO loss
 
     latent_means = torch.cat(latent_means)
     latent_logvars = torch.cat(latent_logvars)
@@ -387,11 +383,8 @@ def plot_vae_loss(args,
         curr_latent_logvar = latent_logvars[i]
 
         # compute the reconstruction loss
-        if not args.disable_stochasticity_in_latent:
-            # take several samples from the latent distribution
-            latent_samples = utl.sample_gaussian(curr_latent_mean.view(-1), curr_latent_logvar.view(-1), num_samples)
-        else:
-            latent_samples = torch.cat((curr_latent_mean.view(-1), curr_latent_logvar.view(-1))).unsqueeze(0)
+        # take several samples from the latent distribution
+        latent_samples = utl.sample_gaussian(curr_latent_mean.view(-1), curr_latent_logvar.view(-1), num_samples)
 
         # expand: each latent sample will be used to make predictions for the entire trajectory
         len_traj = prev_obs.shape[1]

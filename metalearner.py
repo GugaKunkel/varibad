@@ -40,25 +40,7 @@ class MetaLearner:
                                   normalise_rew=args.norm_rew_for_policy, ret_rms=None,
                                   tasks=None
                                   )
-        # Single task mode is helpful for debugging and ablations
-        if self.args.single_task_mode:
-            # get the current tasks (which will be num_process many different tasks)
-            self.train_tasks = self.envs.get_task()
-            # set the tasks to the first task (i.e. just a random task)
-            self.train_tasks[1:] = self.train_tasks[0]
-            # make it a list
-            self.train_tasks = [t for t in self.train_tasks]
-            # re-initialise environments with those tasks
-            self.envs = make_vec_envs(env_name=args.env_name, seed=args.seed, num_processes=args.num_processes,
-                                      gamma=args.policy_gamma, device=device,
-                                      episodes_per_task=self.args.max_rollouts_per_task,
-                                      normalise_rew=args.norm_rew_for_policy, ret_rms=None,
-                                      tasks=self.train_tasks
-                                      )
-            # save the training tasks so we can evaluate on the same envs later
-            utl.save_obj(self.train_tasks, self.logger.full_output_folder, "train_tasks")
-        else:
-            self.train_tasks = None
+        self.train_tasks = None
 
         # calculate what the maximum length of the trajectories is
         self.args.max_trajectory_len = self.envs._max_episode_steps
@@ -198,13 +180,12 @@ class MetaLearner:
 
                 # before resetting, update the embedding and add to vae buffer
                 # (last state might include useful task info)
-                if not (self.args.disable_decoder and self.args.disable_kl_term):
-                    self.vae.rollout_storage.insert(prev_state.clone(),
-                                                    action.detach().clone(),
-                                                    next_state.clone(),
-                                                    rew_raw.clone(),
-                                                    done.clone(),
-                                                    task.clone() if task is not None else None)
+                self.vae.rollout_storage.insert(prev_state.clone(),
+                                                action.detach().clone(),
+                                                next_state.clone(),
+                                                rew_raw.clone(),
+                                                done.clone(),
+                                                task.clone() if task is not None else None)
 
                 # add the obs before reset to the policy storage
                 self.policy_storage.next_state[step] = next_state.clone()
@@ -320,8 +301,6 @@ class MetaLearner:
             # update agent (this will also call the VAE update!)
             policy_train_stats = self.policy.update(
                 policy_storage=self.policy_storage,
-                encoder=self.vae.encoder,
-                rlloss_through_encoder=self.args.rlloss_through_encoder,
                 compute_vae_loss=self.vae.compute_vae_loss)
         else:
             policy_train_stats = 0, 0, 0, 0

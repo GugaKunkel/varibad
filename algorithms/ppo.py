@@ -42,22 +42,12 @@ class PPO:
 
     def update(self,
                policy_storage,
-               encoder=None,  # variBAD encoder
-               rlloss_through_encoder=False,  # whether or not to backprop RL loss through encoder
                compute_vae_loss=None  # function that can compute the VAE loss
                ):
 
         # -- get action values --
         advantages = policy_storage.returns[:-1] - policy_storage.value_preds[:-1]
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-5)
-
-        # if this is true, we will update the VAE at every PPO update
-        # otherwise, we update it after we update the policy
-        if rlloss_through_encoder:
-            # recompute embeddings (to build computation graph)
-            utl.recompute_embeddings(policy_storage, encoder, sample=False, update_idx=0,
-                                     detach_every=self.args.tbptt_stepsize if hasattr(self.args,
-                                                                                      'tbptt_stepsize') else None)
 
         # update the normalisation parameters of policy inputs before updating
         self.actor_critic.update_rms(args=self.args, policy_storage=policy_storage)
@@ -79,12 +69,11 @@ class PPO:
                 actions_batch, latent_sample_batch, latent_mean_batch, latent_logvar_batch, value_preds_batch, \
                 return_batch, old_action_log_probs_batch, adv_targ = sample
 
-                if not rlloss_through_encoder:
-                    state_batch = state_batch.detach()
-                    if latent_sample_batch is not None:
-                        latent_sample_batch = latent_sample_batch.detach()
-                        latent_mean_batch = latent_mean_batch.detach()
-                        latent_logvar_batch = latent_logvar_batch.detach()
+                state_batch = state_batch.detach()
+                if latent_sample_batch is not None:
+                    latent_sample_batch = latent_sample_batch.detach()
+                    latent_mean_batch = latent_mean_batch.detach()
+                    latent_logvar_batch = latent_logvar_batch.detach()
 
                 latent_batch = utl.get_latent_for_policy(args=self.args, latent_sample=latent_sample_batch,
                                                          latent_mean=latent_mean_batch,
@@ -122,42 +111,25 @@ class PPO:
 
                 # zero out the gradients
                 self.optimiser.zero_grad()
-                if rlloss_through_encoder:
-                    self.optimiser_vae.zero_grad()
 
                 # compute policy loss and backprop
                 loss = value_loss * self.value_loss_coef + action_loss - dist_entropy * self.entropy_coef
-
-                # compute vae loss and backprop
-                if rlloss_through_encoder:
-                    loss += self.args.vae_loss_coeff * compute_vae_loss()
 
                 # compute gradients (will attach to all networks involved in this computation)
                 loss.backward()
 
                 # clip gradients
                 nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.args.policy_max_grad_norm)
-                if rlloss_through_encoder:
-                    if self.args.encoder_max_grad_norm is not None:
-                        nn.utils.clip_grad_norm_(encoder.parameters(), self.args.encoder_max_grad_norm)
 
                 # update
                 self.optimiser.step()
-                if rlloss_through_encoder:
-                    self.optimiser_vae.step()
 
                 value_loss_epoch += value_loss.item()
                 action_loss_epoch += action_loss.item()
                 dist_entropy_epoch += dist_entropy.item()
                 loss_epoch += loss.item()
 
-                if rlloss_through_encoder:
-                    # recompute embeddings (to build computation graph)
-                    utl.recompute_embeddings(policy_storage, encoder, sample=False, update_idx=e + 1,
-                                             detach_every=self.args.tbptt_stepsize if hasattr(self.args,
-                                                                                              'tbptt_stepsize') else None)
-
-        if (not rlloss_through_encoder) and (self.optimiser_vae is not None):
+        if self.optimiser_vae is not None:
             for _ in range(self.args.num_vae_updates):
                 compute_vae_loss(update=True)
 
