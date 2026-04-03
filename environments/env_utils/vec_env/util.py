@@ -54,11 +54,3 @@ def obs_space_info(obs_space):
         dtypes[key] = getattr(box, 'dtype', np.float32)
     return keys, shapes, dtypes
 
-
-def obs_to_dict(obs):
-    """
-    Convert an observation into a dict.
-    """
-    if isinstance(obs, dict):
-        return obs
-    return {None: obs}

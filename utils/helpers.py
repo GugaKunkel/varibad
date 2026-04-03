@@ -1,7 +1,6 @@
 import os
 import pickle
 import random
-import warnings
 from distutils.util import strtobool
 
 import numpy as np
@@ -109,68 +108,6 @@ def seed(seed, deterministic_execution=False):
               '(only recommended for debugging).')
 
 
-def update_linear_schedule(optimizer, epoch, total_num_epochs, initial_lr):
-    """Decreases the learning rate linearly"""
-    lr = initial_lr - (initial_lr * (epoch / float(total_num_epochs)))
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
-
-
-def recompute_embeddings(
-        policy_storage,
-        encoder,
-        sample,
-        update_idx,
-        detach_every
-):
-    # get the prior
-    latent_sample = [policy_storage.latent_samples[0].detach().clone()]
-    latent_mean = [policy_storage.latent_mean[0].detach().clone()]
-    latent_logvar = [policy_storage.latent_logvar[0].detach().clone()]
-
-    latent_sample[0].requires_grad = True
-    latent_mean[0].requires_grad = True
-    latent_logvar[0].requires_grad = True
-
-    # loop through experience and update hidden state
-    # (we need to loop because we sometimes need to reset the hidden state)
-    h = policy_storage.hidden_states[0].detach()
-    for i in range(policy_storage.actions.shape[0]):
-        # reset hidden state of the GRU when we reset the task
-        h = encoder.reset_hidden(h, policy_storage.done[i + 1])
-
-        ts, tm, tl, h = encoder(policy_storage.actions.float()[i:i + 1],
-                                policy_storage.next_state[i:i + 1],
-                                policy_storage.rewards_raw[i:i + 1],
-                                h,
-                                sample=sample,
-                                return_prior=False,
-                                detach_every=detach_every
-                                )
-
-        # print(i, reset_task.sum())
-        # print(i, (policy_storage.latent_mean[i + 1] - tm).sum())
-        # print(i, (policy_storage.latent_logvar[i + 1] - tl).sum())
-        # print(i, (policy_storage.hidden_states[i + 1] - h).sum())
-
-        latent_sample.append(ts)
-        latent_mean.append(tm)
-        latent_logvar.append(tl)
-
-    if update_idx == 0:
-        try:
-            assert (torch.cat(policy_storage.latent_mean) - torch.cat(latent_mean)).sum() == 0
-            assert (torch.cat(policy_storage.latent_logvar) - torch.cat(latent_logvar)).sum() == 0
-        except AssertionError:
-            warnings.warn('You are not recomputing the embeddings correctly!')
-            import pdb
-            pdb.set_trace()
-
-    policy_storage.latent_samples = latent_sample
-    policy_storage.latent_mean = latent_mean
-    policy_storage.latent_logvar = latent_logvar
-
-
 class FeatureExtractor(nn.Module):
     """ Used for extrating features for states/actions/rewards """
     def __init__(self, input_size, output_size, activation_function):
@@ -202,12 +139,6 @@ def save_obj(obj, folder, name):
     filename = os.path.join(folder, name + '.pkl')
     with open(filename, 'wb') as f:
         pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
-
-
-def load_obj(folder, name):
-    filename = os.path.join(folder, name + '.pkl')
-    with open(filename, 'rb') as f:
-        return pickle.load(f)
 
 
 class RunningMeanStd(object):

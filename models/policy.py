@@ -6,23 +6,6 @@ import torch
 import torch.nn as nn
 
 from utils import helpers as utl
-# try:
-#     from torch.distributions import TanhTransform, TransformedDistribution
-
-#     class TanhNormal(TransformedDistribution):
-#         def __init__(self, base_distribution, transforms, validate_args=None):
-#             super().__init__(base_distribution, transforms, validate_args=None)
-
-#     @property
-#     def mean(self):
-#         x = self.base_dist.mean
-#         for transform in self.transforms:
-#             x = transform(x)
-#         return x
-
-# except ImportError:
-#     print('You are probably running MuJoCo 131, so PyTorch Transforms cannot be used.')
-#     pass
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -236,20 +219,8 @@ class Policy(nn.Module):
 
         value, actor_features = self.forward(state, latent, belief, task)
         dist = self.dist(actor_features)
-
-        if getattr(self.args, 'norm_actions_post_sampling', False):
-            transformation = TanhTransform(cache_size=1)
-            dist = TanhNormal(dist, transformation)
-            action = transformation(action)
-            action_log_probs = dist.log_prob(action).sum(-1, keepdim=True)
-            # empirical entropy
-            # dist_entropy = -action_log_probs.mean()
-            # entropy of underlying dist (isn't correct but works well in practice)
-            dist_entropy = dist.base_dist.entropy().mean()
-        else:
-            action_log_probs = dist.log_probs(action)
-            dist_entropy = dist.entropy().mean()
-
+        action_log_probs = dist.log_probs(action)
+        dist_entropy = dist.entropy().mean()
         return value, action_log_probs, dist_entropy
 
 
