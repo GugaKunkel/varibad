@@ -48,7 +48,7 @@ def evaluate(args,
     num_steps = envs._max_episode_steps
 
     # reset environments
-    state, belief, task = utl.reset_env(envs, args)
+    state, belief = utl.reset_env(envs, args)
 
     # this counts how often an agent has done the same task already
     task_count = torch.zeros(num_processes).long().to(device)
@@ -68,14 +68,13 @@ def evaluate(args,
                                               policy=policy,
                                               state=state,
                                               belief=belief,
-                                              task=task,
                                               latent_sample=latent_sample,
                                               latent_mean=latent_mean,
                                               latent_logvar=latent_logvar,
                                               deterministic=True)
 
             # observe reward and next obs
-            [state, belief, task], (rew_raw, rew_normalised), terminated, truncated, infos = utl.env_step(envs, action, args)
+            [state, belief], (rew_raw, rew_normalised), terminated, truncated, infos = utl.env_step(envs, action, args)
             done = np.logical_or(terminated, truncated)
             done_mdp = [info['done_mdp'] for info in infos]
 
@@ -96,7 +95,7 @@ def evaluate(args,
                 task_count[i] = min(task_count[i] + 1, num_episodes)  # zero-indexed, so no +1
             if np.sum(done) > 0:
                 done_indices = np.argwhere(done.flatten()).flatten()
-                state, belief, task = utl.reset_env(envs, args, indices=done_indices, state=state)
+                state, belief = utl.reset_env(envs, args, indices=done_indices, state=state)
 
     envs.close()
 
@@ -112,9 +111,7 @@ def visualise_behaviour(args,
                         encoder=None,
                         reward_decoder=None,
                         state_decoder=None,
-                        task_decoder=None,
                         compute_rew_reconstruction_loss=None,
-                        compute_task_reconstruction_loss=None,
                         compute_state_reconstruction_loss=None,
                         compute_kl_loss=None,
                         ):
@@ -129,8 +126,6 @@ def visualise_behaviour(args,
                         rank_offset=args.num_processes + 42,  # not sure if the temp folders would otherwise clash
                         tasks=tasks
                         )
-    episode_task = torch.from_numpy(np.array(env.get_task())).to(device).float()
-
     # get a sample rollout
     unwrapped_env = env.venv.unwrapped.envs[0]
     if hasattr(env.venv.unwrapped.envs[0], 'unwrapped'):
@@ -145,7 +140,6 @@ def visualise_behaviour(args,
                                                  encoder=encoder,
                                                  reward_decoder=reward_decoder,
                                                  state_decoder=state_decoder,
-                                                 task_decoder=task_decoder,
                                                  image_folder=image_folder,
                                                  )
     else:
@@ -166,13 +160,10 @@ def visualise_behaviour(args,
                       episode_next_obs,
                       episode_actions,
                       episode_rewards,
-                      episode_task,
                       image_folder=image_folder,
                       iter_idx=iter_idx,
                       reward_decoder=reward_decoder,
                       state_decoder=state_decoder,
-                      task_decoder=task_decoder,
-                      compute_task_reconstruction_loss=compute_task_reconstruction_loss,
                       compute_rew_reconstruction_loss=compute_rew_reconstruction_loss,
                       compute_state_reconstruction_loss=compute_state_reconstruction_loss,
                       compute_kl_loss=compute_kl_loss,
@@ -206,9 +197,8 @@ def get_test_rollout(args, env, policy, encoder=None):
 
     # (re)set environment
     env.unwrapped.reset_task()
-    state, belief, task = utl.reset_env(env, args)
+    state, belief = utl.reset_env(env, args)
     state = state.reshape((1, -1)).to(device)
-    task = task.view(-1) if task is not None else None
 
     for episode_idx in range(num_episodes):
 
@@ -233,14 +223,13 @@ def get_test_rollout(args, env, policy, encoder=None):
                                                latent_sample=curr_latent_sample,
                                                latent_mean=curr_latent_mean,
                                                latent_logvar=curr_latent_logvar)
-            _, action = policy.act(state=state.view(-1), latent=latent, belief=belief, task=task, deterministic=True)
+            _, action = policy.act(state=state.view(-1), latent=latent, belief=belief, deterministic=True)
             action = action.reshape((1, *action.shape))
 
             # observe reward and next obs
-            [state, belief, task], (rew_raw, rew_normalised), terminated, truncated, infos = utl.env_step(...)
+            [state, belief], (rew_raw, rew_normalised), terminated, truncated, infos = utl.env_step(env, action, args)
             done = np.logical_or(terminated, truncated)
             state = state.reshape((1, -1)).to(device)
-            task = task.view(-1) if task is not None else None
 
             if encoder is not None:
                 # update task embedding
@@ -335,13 +324,10 @@ def plot_vae_loss(args,
                   next_obs,
                   actions,
                   rewards,
-                  task,
                   image_folder,
                   iter_idx,
                   reward_decoder,
                   state_decoder,
-                  task_decoder,
-                  compute_task_reconstruction_loss,
                   compute_rew_reconstruction_loss,
                   compute_state_reconstruction_loss,
                   compute_kl_loss
@@ -372,10 +358,6 @@ def plot_vae_loss(args,
     state_reconstr_std = []
     state_pred_std = []
 
-    task_reconstr_mean = []
-    task_reconstr_std = []
-    task_pred_std = []
-
     # compute the sum of ELBO_t's by looping through (trajectory length + prior)
     for i in range(len(latent_means)):
 
@@ -388,15 +370,6 @@ def plot_vae_loss(args,
 
         # expand: each latent sample will be used to make predictions for the entire trajectory
         len_traj = prev_obs.shape[1]
-
-        # compute reconstruction losses
-        if task_decoder is not None:
-            loss_task, task_pred = compute_task_reconstruction_loss(latent_samples, task, return_predictions=True)
-
-            # average/std across the different samples
-            task_reconstr_mean.append(loss_task.mean())
-            task_reconstr_std.append(loss_task.std())
-            task_pred_std.append(task_pred.std())
 
         latent_samples = latent_samples.unsqueeze(1).expand(num_samples, len_traj, latent_samples.shape[-1])
 
@@ -526,48 +499,6 @@ def plot_vae_loss(args,
         plt.tight_layout()
         if image_folder is not None:
             plt.savefig('{}/{}_state_reconstruction'.format(image_folder, iter_idx))
-            plt.close()
-        else:
-            plt.show()
-
-    # --- plot task reconstruction ---
-
-    if task_decoder is not None:
-
-        plt.figure(figsize=(12, 5))
-
-        task_reconstr_mean = torch.stack(task_reconstr_mean).detach().cpu().numpy()
-        task_reconstr_std = torch.stack(task_reconstr_std).detach().cpu().numpy()
-        task_pred_std = torch.stack(task_pred_std).detach().cpu().numpy()
-
-        plt.subplot(1, 2, 1)
-        p = plt.plot(x, task_reconstr_mean, 'b-')
-        plt.gca().fill_between(x,
-                               task_reconstr_mean - task_reconstr_std,
-                               task_reconstr_mean + task_reconstr_std,
-                               facecolor=p[0].get_color(), alpha=0.1)
-        for tj in np.cumsum([0, *[num_episode_steps for _ in range(num_rollouts)]]):
-            min_y = (task_reconstr_mean - task_reconstr_std).min()
-            max_y = (task_reconstr_mean + task_reconstr_std).max()
-            span = max_y - min_y
-            plt.plot([tj + 0.5, tj + 0.5],
-                     [min_y - span * 0.05, max_y + span * 0.05],
-                     'k--', alpha=0.5)
-        plt.xlabel('env steps', fontsize=15)
-        plt.ylabel('task reconstruction error', fontsize=15)
-
-        plt.subplot(1, 2, 2)
-        plt.plot(x, task_pred_std, 'b-')
-        for tj in np.cumsum([0, *[num_episode_steps for _ in range(num_rollouts)]]):
-            span = task_pred_std.max() - task_pred_std.min()
-            plt.plot([tj + 0.5, tj + 0.5],
-                     [task_pred_std.min() - span * 0.05, task_pred_std.max() + span * 0.05],
-                     'k--', alpha=0.5)
-        plt.xlabel('env steps', fontsize=15)
-        plt.ylabel('std of task reconstruction', fontsize=15)
-        plt.tight_layout()
-        if image_folder is not None:
-            plt.savefig('{}/{}_task_reconstruction'.format(image_folder, iter_idx))
             plt.close()
         else:
             plt.show()

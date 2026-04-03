@@ -84,14 +84,11 @@ class MetaLearner:
             pass_state_to_policy=self.args.pass_state_to_policy,
             pass_latent_to_policy=self.args.pass_latent_to_policy,
             pass_belief_to_policy=self.args.pass_belief_to_policy,
-            pass_task_to_policy=self.args.pass_task_to_policy,
             dim_state=self.args.state_dim,
             dim_latent=self.args.latent_dim * 2,
             dim_belief=self.args.belief_dim,
-            dim_task=self.args.task_dim,
             #
             hidden_layers=self.args.policy_layers,
-            activation_function=self.args.policy_activation_function,
             policy_initialisation=self.args.policy_initialisation,
             #
             action_space=self.envs.action_space,
@@ -119,7 +116,7 @@ class MetaLearner:
         start_time = time.time()
 
         # reset environments
-        prev_state, belief, task = utl.reset_env(self.envs, self.args)
+        prev_state, belief = utl.reset_env(self.envs, self.args)
 
         # insert initial observation / embeddings to rollout storage
         self.policy_storage.prev_state[0].copy_(prev_state)
@@ -151,7 +148,6 @@ class MetaLearner:
                         policy=self.policy,
                         state=prev_state,
                         belief=belief,
-                        task=task,
                         deterministic=False,
                         latent_sample=latent_sample,
                         latent_mean=latent_mean,
@@ -159,7 +155,7 @@ class MetaLearner:
                     )
 
                 # take step in the environment
-                [next_state, belief, task], (rew_raw, rew_normalised), terminated, truncated, infos = utl.env_step(self.envs, action, self.args)
+                [next_state, belief], (rew_raw, rew_normalised), terminated, truncated, infos = utl.env_step(self.envs, action, self.args)
                 done = np.logical_or(terminated, truncated)
 
                 done = torch.from_numpy(np.array(done, dtype=int)).to(device).float().view((-1, 1))
@@ -185,7 +181,7 @@ class MetaLearner:
                                                 next_state.clone(),
                                                 rew_raw.clone(),
                                                 done.clone(),
-                                                task.clone() if task is not None else None)
+                                                None)
 
                 # add the obs before reset to the policy storage
                 self.policy_storage.next_state[step] = next_state.clone()
@@ -193,14 +189,14 @@ class MetaLearner:
                 # reset environments that are done
                 done_indices = np.argwhere(done.cpu().flatten()).flatten()
                 if len(done_indices) > 0:
-                    next_state, belief, task = utl.reset_env(self.envs, self.args,
-                                                             indices=done_indices, state=next_state)
+                    next_state, belief = utl.reset_env(self.envs, self.args,
+                                                       indices=done_indices, state=next_state)
 
                 # add experience to policy buffer
                 self.policy_storage.insert(
                     state=next_state,
                     belief=belief,
-                    task=task,
+                    task=None,
                     actions=action,
                     rewards_raw=rew_raw,
                     rewards_normalised=rew_normalised,
@@ -231,7 +227,6 @@ class MetaLearner:
 
                     train_stats = self.update(state=prev_state,
                                               belief=belief,
-                                              task=task,
                                               latent_sample=latent_sample,
                                               latent_mean=latent_mean,
                                               latent_logvar=latent_logvar)
@@ -271,11 +266,11 @@ class MetaLearner:
 
         return latent_sample, latent_mean, latent_logvar, hidden_state
 
-    def get_value(self, state, belief, task, latent_sample, latent_mean, latent_logvar):
+    def get_value(self, state, belief, latent_sample, latent_mean, latent_logvar):
         latent = utl.get_latent_for_policy(self.args, latent_sample=latent_sample, latent_mean=latent_mean, latent_logvar=latent_logvar)
-        return self.policy.actor_critic.get_value(state=state, belief=belief, task=task, latent=latent).detach()
+        return self.policy.actor_critic.get_value(state=state, belief=belief, latent=latent).detach()
 
-    def update(self, state, belief, task, latent_sample, latent_mean, latent_logvar):
+    def update(self, state, belief, latent_sample, latent_mean, latent_logvar):
         """
         Meta-update.
         Here the policy is updated for good average performance across tasks.
@@ -288,7 +283,6 @@ class MetaLearner:
             with torch.no_grad():
                 next_value = self.get_value(state=state,
                                             belief=belief,
-                                            task=task,
                                             latent_sample=latent_sample,
                                             latent_mean=latent_mean,
                                             latent_logvar=latent_logvar)
@@ -383,10 +377,6 @@ class MetaLearner:
                 if self.args.norm_rew_for_policy:
                     rew_rms = self.envs.venv.ret_rms
                     utl.save_obj(rew_rms, save_path, f"env_rew_rms{idx_label}")
-                # TODO: grab from policy and save?
-                # if self.args.norm_obs_for_policy:
-                #     obs_rms = self.envs.venv.obs_rms
-                #     utl.save_obj(obs_rms, save_path, f"env_obs_rms{idx_label}")
 
         # --- log some other things ---
 

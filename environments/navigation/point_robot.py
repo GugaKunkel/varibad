@@ -145,9 +145,8 @@ class PointEnv(Env):
 
         # (re)set environment
         env.reset_task()
-        state, belief, task = utl.reset_env(env, args)
+        state, belief = utl.reset_env(env, args)
         start_obs_raw = state.clone()
-        task = task.view(-1) if task is not None else None
 
         # initialise actions and rewards (used as initial input to policy if we have a recurrent policy)
         if hasattr(args, 'hidden_size'):
@@ -190,14 +189,13 @@ class PointEnv(Env):
                                                    latent_sample=curr_latent_sample,
                                                    latent_mean=curr_latent_mean,
                                                    latent_logvar=curr_latent_logvar)
-                _, action = policy.act(state=state.view(-1), latent=latent, belief=belief, task=task,
+                _, action = policy.act(state=state.view(-1), latent=latent, belief=belief,
                                        deterministic=True)
 
-                (state, belief, task), (rew, rew_normalised), terminated, truncated, info = utl.env_step(env, action, args)
+                (state, belief), (rew, rew_normalised), terminated, truncated, info = utl.env_step(env, action, args)
                 done = np.logical_or(terminated, truncated)
                 
                 state = state.float().reshape((1, -1)).to(device)
-                task = task.view(-1) if task is not None else None
 
                 # keep track of position
                 pos[episode_idx].append(state[0])

@@ -17,14 +17,11 @@ class Policy(nn.Module):
                  pass_state_to_policy,
                  pass_latent_to_policy,
                  pass_belief_to_policy,
-                 pass_task_to_policy,
                  dim_state,
                  dim_latent,
                  dim_belief,
-                 dim_task,
                  # hidden
                  hidden_layers,
-                 activation_function,  # tanh, relu, leaky-relu
                  policy_initialisation,  # orthogonal / normc
                  # output
                  action_space,
@@ -33,30 +30,21 @@ class Policy(nn.Module):
         """
         The policy can get any of these as input:
         - state (given by environment)
-        - task (in the (belief) oracle setting)
         - latent variable (from VAE)
         """
         super(Policy, self).__init__()
 
         self.args = args
 
-        if activation_function == 'tanh':
-            self.activation_function = nn.Tanh()
-        elif activation_function == 'relu':
-            self.activation_function = nn.ReLU()
-        elif activation_function == 'leaky-relu':
-            self.activation_function = nn.LeakyReLU()
-        else:
-            raise ValueError
+        self.activation_function = nn.Tanh()
 
         if policy_initialisation == 'normc':
-            init_ = lambda m: init(m, init_normc_, lambda x: nn.init.constant_(x, 0), nn.init.calculate_gain(activation_function))
+            init_ = lambda m: init(m, init_normc_, lambda x: nn.init.constant_(x, 0), nn.init.calculate_gain('tanh'))
         elif policy_initialisation == 'orthogonal':
-            init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.constant_(x, 0), nn.init.calculate_gain(activation_function))
+            init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.constant_(x, 0), nn.init.calculate_gain('tanh'))
 
         self.pass_state_to_policy = pass_state_to_policy
         self.pass_latent_to_policy = pass_latent_to_policy
-        self.pass_task_to_policy = pass_task_to_policy
         self.pass_belief_to_policy = pass_belief_to_policy
 
         # set normalisation parameters for the inputs
@@ -70,14 +58,10 @@ class Policy(nn.Module):
         self.norm_belief = self.args.norm_belief_for_policy and (dim_belief is not None)
         if self.pass_belief_to_policy and self.norm_belief:
             self.belief_rms = utl.RunningMeanStd(shape=(dim_belief))
-        self.norm_task = self.args.norm_task_for_policy and (dim_task is not None)
-        if self.pass_task_to_policy and self.norm_task:
-            self.task_rms = utl.RunningMeanStd(shape=(dim_task))
 
         curr_input_dim = dim_state * int(self.pass_state_to_policy) + \
                          dim_latent * int(self.pass_latent_to_policy) + \
-                         dim_belief * int(self.pass_belief_to_policy) + \
-                         dim_task * int(self.pass_task_to_policy)
+                         dim_belief * int(self.pass_belief_to_policy)
         # initialise encoders for separate inputs
         self.use_state_encoder = self.args.policy_state_embedding_dim is not None
         if self.pass_state_to_policy and self.use_state_encoder:
@@ -91,10 +75,6 @@ class Policy(nn.Module):
         if self.pass_belief_to_policy and self.use_belief_encoder:
             self.belief_encoder = utl.FeatureExtractor(dim_belief, self.args.policy_belief_embedding_dim, self.activation_function)
             curr_input_dim = curr_input_dim - dim_belief + self.args.policy_belief_embedding_dim
-        self.use_task_encoder = self.args.policy_task_embedding_dim is not None
-        if self.pass_task_to_policy and self.use_task_encoder:
-            self.task_encoder = utl.FeatureExtractor(dim_task, self.args.policy_task_embedding_dim, self.activation_function)
-            curr_input_dim = curr_input_dim - dim_task + self.args.policy_task_embedding_dim
 
         # initialise actor and critic
         hidden_layers = [int(h) for h in hidden_layers]
@@ -138,7 +118,7 @@ class Policy(nn.Module):
             h = self.activation_function(h)
         return h
 
-    def forward(self, state, latent, belief, task):
+    def forward(self, state, latent, belief):
 
         # handle inputs (normalise + embed)
 
@@ -163,27 +143,19 @@ class Policy(nn.Module):
                 belief = self.belief_encoder(belief.float())
         else:
             belief = torch.zeros(0, ).to(device)
-        if self.pass_task_to_policy:
-            if self.norm_task:
-                task = (task - self.task_rms.mean) / torch.sqrt(self.task_rms.var + 1e-8)
-            if self.use_task_encoder:
-                task = self.task_encoder(task.float())
-        else:
-            task = torch.zeros(0, ).to(device)
-
         # concatenate inputs
-        inputs = torch.cat((state, latent, belief, task), dim=-1)
+        inputs = torch.cat((state, latent, belief), dim=-1)
 
         # forward through critic/actor part
         hidden_critic = self.forward_critic(inputs)
         hidden_actor = self.forward_actor(inputs)
         return self.critic_linear(hidden_critic), hidden_actor
 
-    def act(self, state, latent, belief, task, deterministic=False):
+    def act(self, state, latent, belief, deterministic=False):
         """
         Returns the (raw) actions and their value.
         """
-        value, actor_features = self.forward(state=state, latent=latent, belief=belief, task=task)
+        value, actor_features = self.forward(state=state, latent=latent, belief=belief)
         dist = self.dist(actor_features)
         if deterministic:
             if isinstance(dist, FixedCategorical):
@@ -195,8 +167,8 @@ class Policy(nn.Module):
 
         return value, action
 
-    def get_value(self, state, latent, belief, task):
-        value, _ = self.forward(state, latent, belief, task)
+    def get_value(self, state, latent, belief):
+        value, _ = self.forward(state, latent, belief)
         return value
 
     def update_rms(self, args, policy_storage):
@@ -212,12 +184,9 @@ class Policy(nn.Module):
             self.latent_rms.update(latent)
         if self.pass_belief_to_policy and self.norm_belief:
             self.belief_rms.update(policy_storage.beliefs[:-1])
-        if self.pass_task_to_policy and self.norm_task:
-            self.task_rms.update(policy_storage.tasks[:-1])
+    def evaluate_actions(self, state, latent, belief, action):
 
-    def evaluate_actions(self, state, latent, belief, task, action):
-
-        value, actor_features = self.forward(state, latent, belief, task)
+        value, actor_features = self.forward(state, latent, belief)
         dist = self.dist(actor_features)
         action_log_probs = dist.log_probs(action)
         dist_entropy = dist.entropy().mean()

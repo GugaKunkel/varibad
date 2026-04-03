@@ -68,12 +68,6 @@ and some visualisations will be printed every now and then.
 Some comments on the flags in the config files:
 - You can choose what type of decoder you by setting the respective flags to true: 
 `--decode_reward True` and/or `--decode_state True`.
-- You can also choose a task decoder (`--decode_task True`), which was proposed by 
-[Humplik et al. (2019)](https://arxiv.org/abs/1905.06424). 
-This method uses privileged information during meta-training (e.g., the task description or ID)
-to learn the posterior distribution in a supervised way. 
-(Note that our implementation is based on the variBAD architecture, 
-so differs slightly from theirs.)
 - The size of the latent dimension can be changed using `--latent_dim`.
 - In our experience, the performance of PPO depends a lot on 
 the number of minibatches (`--ppo_num_minibatch`),

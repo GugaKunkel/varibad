@@ -7,8 +7,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from environments.parallel_envs import make_vec_envs
-
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def reset_env(env, args, indices=None, state=None):
@@ -23,9 +21,7 @@ def reset_env(env, args, indices=None, state=None):
             state[i] = env.reset(index=i)
 
     belief = torch.from_numpy(env.get_belief()).float().to(device) if args.pass_belief_to_policy else None
-    task = torch.from_numpy(env.get_task()).float().to(device) if args.pass_task_to_policy else None
-        
-    return state, belief, task
+    return state, belief
 
 def env_step(env, action, args):
     next_obs, reward, terminated, truncated, infos = env.step(action)
@@ -40,9 +36,7 @@ def env_step(env, action, args):
         reward = reward.to(device)
 
     belief = torch.from_numpy(env.get_belief()).float().to(device) if args.pass_belief_to_policy else None
-    task = torch.from_numpy(env.get_task()).float().to(device) if (args.pass_task_to_policy or args.decode_task) else None
-
-    return [next_obs, belief, task], reward, terminated, truncated, infos
+    return [next_obs, belief], reward, terminated, truncated, infos
 
 
 def select_action(args,
@@ -50,12 +44,11 @@ def select_action(args,
                   deterministic,
                   state=None,
                   belief=None,
-                  task=None,
                   latent_sample=None, latent_mean=None, latent_logvar=None):
     """ Select action using the policy. """
     latent = get_latent_for_policy(args=args, latent_sample=latent_sample, latent_mean=latent_mean,
                                    latent_logvar=latent_logvar)
-    action = policy.act(state=state, latent=latent, belief=belief, task=task, deterministic=deterministic)
+    action = policy.act(state=state, latent=latent, belief=belief, deterministic=deterministic)
     if isinstance(action, list) or isinstance(action, tuple):
         value, action = action
     else:
@@ -178,30 +171,6 @@ def update_mean_var_count_from_moments(mean, var, count, batch_mean, batch_var, 
 def boolean_argument(value):
     """Convert a string value to boolean."""
     return bool(strtobool(value))
-
-
-def get_task_dim(args):
-    env = make_vec_envs(env_name=args.env_name, seed=args.seed, num_processes=args.num_processes,
-                        gamma=args.policy_gamma, device=device,
-                        episodes_per_task=args.max_rollouts_per_task,
-                        normalise_rew=args.norm_rew_for_policy, ret_rms=None,
-                        tasks=None
-                        )
-    return env.unwrapped.task_dim
-
-
-def get_num_tasks(args):
-    env = make_vec_envs(env_name=args.env_name, seed=args.seed, num_processes=args.num_processes,
-                        gamma=args.policy_gamma, device=device,
-                        episodes_per_task=args.max_rollouts_per_task,
-                        normalise_rew=args.norm_rew_for_policy, ret_rms=None,
-                        tasks=None
-                        )
-    try:
-        num_tasks = env.num_tasks
-    except AttributeError:
-        num_tasks = None
-    return num_tasks
 
 
 def clip(value, low, high):

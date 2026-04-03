@@ -15,8 +15,7 @@ class StateTransitionDecoder(nn.Module):
                  action_dim,
                  action_embed_dim,
                  state_dim,
-                 state_embed_dim,
-                 pred_type='deterministic'
+                 state_embed_dim
                  ):
         super(StateTransitionDecoder, self).__init__()
 
@@ -32,10 +31,7 @@ class StateTransitionDecoder(nn.Module):
             curr_input_dim = layers[i]
 
         # output layer
-        if pred_type == 'gaussian':
-            self.fc_out = nn.Linear(curr_input_dim, 2 * state_dim)
-        else:
-            self.fc_out = nn.Linear(curr_input_dim, state_dim)
+        self.fc_out = nn.Linear(curr_input_dim, state_dim)
 
     def forward(self, latent_state, state, actions):
         ha = self.action_encoder(actions)

@@ -35,13 +35,7 @@ def get_args(rest_args):
 
     # network
     parser.add_argument('--policy_layers', nargs='+', default=[32])
-    parser.add_argument('--policy_activation_function', type=str, default='tanh', help='tanh/relu/leaky-relu')
     parser.add_argument('--policy_initialisation', type=str, default='normc', help='normc/orthogonal')
-    parser.add_argument('--policy_anneal_lr', type=boolean_argument, default=False)
-
-    # RL algorithm
-    parser.add_argument('--policy', type=str, default='ppo', help='choose: a2c, ppo')
-    parser.add_argument('--policy_optimiser', type=str, default='adam', help='choose: rmsprop, adam')
 
     # PPO specific
     parser.add_argument('--ppo_num_epochs', type=int, default=2, help='number of epochs per PPO update')
@@ -56,7 +50,7 @@ def get_args(rest_args):
                         help='how many training CPU processes / parallel environments to use (default: 16)')
     parser.add_argument('--policy_num_steps', type=int, default=60,
                         help='number of env steps to do (per process) before updating')
-    parser.add_argument('--policy_eps', type=float, default=1e-8, help='optimizer epsilon (1e-8 for ppo, 1e-5 for a2c)')
+    parser.add_argument('--policy_eps', type=float, default=1e-8, help='optimizer epsilon for ppo')
     parser.add_argument('--policy_init_std', type=float, default=1.0, help='only used for continuous actions')
     parser.add_argument('--policy_value_loss_coef', type=float, default=0.5, help='value loss coefficient')
     parser.add_argument('--policy_entropy_coef', type=float, default=0.01, help='entropy term coefficient')
@@ -97,21 +91,15 @@ def get_args(rest_args):
     parser.add_argument('--pretrain_len', type=int, default=0, help='for how many updates to pre-train the VAE')
     parser.add_argument('--kl_weight', type=float, default=0.01, help='weight for the KL term')
 
-    parser.add_argument('--split_batches_by_task', type=boolean_argument, default=False,
-                        help='split batches up by task (to save memory or if tasks are of different length)')
-
     # - encoder
     parser.add_argument('--action_embedding_size', type=int, default=0)
     parser.add_argument('--state_embedding_size', type=int, default=8)
     parser.add_argument('--reward_embedding_size', type=int, default=8)
-    parser.add_argument('--encoder_layers_before_gru', nargs='+', type=int, default=[])
     parser.add_argument('--encoder_gru_hidden_size', type=int, default=64, help='dimensionality of RNN hidden state')
-    parser.add_argument('--encoder_layers_after_gru', nargs='+', type=int, default=[])
     parser.add_argument('--latent_dim', type=int, default=5, help='dimensionality of latent space')
 
     # - decoder: rewards
     parser.add_argument('--decode_reward', type=boolean_argument, default=True, help='use reward decoder')
-    parser.add_argument('--rew_loss_coeff', type=float, default=1.0, help='weight for state loss (vs reward loss)')
     parser.add_argument('--input_prev_state', type=boolean_argument, default=False, help='use prev state for rew pred')
     parser.add_argument('--input_action', type=boolean_argument, default=False, help='use prev action for rew pred')
     parser.add_argument('--reward_decoder_layers', nargs='+', type=int, default=[32, 32])
@@ -125,15 +113,7 @@ def get_args(rest_args):
 
     # - decoder: state transitions
     parser.add_argument('--decode_state', type=boolean_argument, default=False, help='use state decoder')
-    parser.add_argument('--state_loss_coeff', type=float, default=1.0, help='weight for state loss')
     parser.add_argument('--state_decoder_layers', nargs='+', type=int, default=[32, 32])
-    parser.add_argument('--state_pred_type', type=str, default='deterministic', help='choose: deterministic, gaussian')
-
-    # - decoder: ground-truth task ("varibad oracle", after Humplik et al. 2019)
-    parser.add_argument('--decode_task', type=boolean_argument, default=False, help='use task decoder')
-    parser.add_argument('--task_loss_coeff', type=float, default=1.0, help='weight for task loss')
-    parser.add_argument('--task_decoder_layers', nargs='+', type=int, default=[32, 32])
-    parser.add_argument('--task_pred_type', type=str, default='task_id', help='choose: task_id, task_description')
 
     # --- OTHERS ---
 

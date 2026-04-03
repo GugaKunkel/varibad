@@ -213,7 +213,6 @@ class OnlineStorage(object):
         _, action_log_probs, _ = policy.evaluate_actions(self.prev_state[:-1],
                                                          latent,
                                                          self.beliefs[:-1] if self.beliefs is not None else None,
-                                                         self.tasks[:-1] if self.tasks is not None else None,
                                                          self.actions)
         self.action_log_probs = action_log_probs.detach()
 

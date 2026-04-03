@@ -19,7 +19,7 @@ def main():
             warnings.warn('Running with deterministic CUDNN.')
         if args.num_processes > 1:
             raise RuntimeError('If you want fully deterministic code, run it with num_processes=1.'
-                               'Warning: This will slow things down and might break A2C if '
+                               'Warning: This will slow things down and might break training if '
                                'policy_num_steps < _max_episode_steps.')
 
     # begin training (loop through all passed seeds)
