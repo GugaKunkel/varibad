@@ -6,9 +6,7 @@ import argparse
 import warnings
 import torch
 
-# get configs
-from config.gridworld import \
-    args_grid_belief_oracle, args_grid_rl2, args_grid_varibad
+from config.gridworld import args_grid_belief_oracle, args_grid_varibad
 from learner import Learner
 from metalearner import MetaLearner
 
@@ -37,7 +35,7 @@ def main():
                                'policy_num_steps < env._max_episode_steps.')
 
     # clean up arguments
-    if args.disable_metalearner or args.disable_decoder:
+    if args.disable_metalearner:
         args.decode_reward = False
         args.decode_state = False
         args.decode_task = False
