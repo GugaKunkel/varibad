@@ -1,5 +1,5 @@
-# import os
-# import time
+import os
+import time
 
 import gymnasium as gym
 import numpy as np
@@ -9,7 +9,7 @@ import torch
 from algorithms.online_storage import OnlineStorage
 # from algorithms.ppo import PPO
 from environments.parallel_envs import make_vec_envs
-# from models.policy import Policy
+from models.policy import Policy
 # from utils import evaluation as utl_eval
 from utils import helpers as utl
 from utils.tb_logger import TBLogger
@@ -80,7 +80,7 @@ class MetaLearner:
         # initialise VAE and policy
         self.vae = VaribadVAE(self.args, self.logger, lambda: self.iter_idx)
         self.policy_storage = self.initialise_policy_storage()
-#         self.policy = self.initialise_policy()
+        self.policy = self.initialise_policy()
 
     def initialise_policy_storage(self):
         return OnlineStorage(args=self.args,
@@ -95,11 +95,10 @@ class MetaLearner:
                              normalise_rewards=self.args.norm_rew_for_policy,
                              )
 
-#     def initialise_policy(self):
-
-#         # initialise policy network
-#         policy_net = Policy(
-#             args=self.args,
+    def initialise_policy(self):
+        # initialise policy network
+        policy_net = Policy(
+            args=self.args,
 #             #
 #             pass_state_to_policy=self.args.pass_state_to_policy,
 #             pass_latent_to_policy=self.args.pass_latent_to_policy,
@@ -116,48 +115,29 @@ class MetaLearner:
 #             #
 #             action_space=self.envs.action_space,
 #             init_std=self.args.policy_init_std,
-#         ).to(device)
-
-#         # initialise policy trainer
-#         if self.args.policy == 'a2c':
-#             policy = A2C(
-#                 self.args,
-#                 policy_net,
-#                 self.args.policy_value_loss_coef,
-#                 self.args.policy_entropy_coef,
-#                 policy_optimiser=self.args.policy_optimiser,
-#                 policy_anneal_lr=self.args.policy_anneal_lr,
-#                 train_steps=self.num_updates,
-#                 optimiser_vae=self.vae.optimiser_vae,
-#                 lr=self.args.lr_policy,
-#                 eps=self.args.policy_eps,
-#             )
-#         elif self.args.policy == 'ppo':
-#             policy = PPO(
-#                 self.args,
-#                 policy_net,
-#                 self.args.policy_value_loss_coef,
-#                 self.args.policy_entropy_coef,
-#                 policy_optimiser=self.args.policy_optimiser,
-#                 policy_anneal_lr=self.args.policy_anneal_lr,
-#                 train_steps=self.num_updates,
-#                 lr=self.args.lr_policy,
-#                 eps=self.args.policy_eps,
-#                 ppo_epoch=self.args.ppo_num_epochs,
-#                 num_mini_batch=self.args.ppo_num_minibatch,
-#                 use_huber_loss=self.args.ppo_use_huberloss,
-#                 use_clipped_value_loss=self.args.ppo_use_clipped_value_loss,
-#                 clip_param=self.args.ppo_clip_param,
-#                 optimiser_vae=self.vae.optimiser_vae,
-#             )
-#         else:
-#             raise NotImplementedError
-
+        ).to(device)
+        # policy = PPO(
+        #     self.args,
+        #     policy_net,
+        #     self.args.policy_value_loss_coef,
+        #     self.args.policy_entropy_coef,
+        #     policy_optimiser=self.args.policy_optimiser,
+        #     policy_anneal_lr=self.args.policy_anneal_lr,
+        #     train_steps=self.num_updates,
+        #     lr=self.args.lr_policy,
+        #     eps=self.args.policy_eps,
+        #     ppo_epoch=self.args.ppo_num_epochs,
+        #     num_mini_batch=self.args.ppo_num_minibatch,
+        #     use_huber_loss=self.args.ppo_use_huberloss,
+        #     use_clipped_value_loss=self.args.ppo_use_clipped_value_loss,
+        #     clip_param=self.args.ppo_clip_param,
+        #     optimiser_vae=self.vae.optimiser_vae,
+        # )
 #         return policy
 
-#     def train(self):
-#         """ Main Meta-Training loop """
-#         start_time = time.time()
+    def train(self):
+        """ Main Meta-Training loop """
+        start_time = time.time()
 
 #         # reset environments
 #         prev_state, belief, task = utl.reset_env(self.envs, self.args)
