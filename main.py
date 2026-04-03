@@ -23,8 +23,6 @@ def main():
         args = args_grid_belief_oracle.get_args(rest_args)
     elif env == 'gridworld_varibad':
         args = args_grid_varibad.get_args(rest_args)
-    elif env == 'gridworld_rl2':
-        args = args_grid_rl2.get_args(rest_args)
     else:
         raise Exception("Invalid Environment")
 
