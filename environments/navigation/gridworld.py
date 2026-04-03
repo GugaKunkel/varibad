@@ -3,12 +3,13 @@ import math
 import random
 from torch.nn import functional as F
 
-import gym
+import gymnasium as gym
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import numpy as np
 import torch
-from gym import spaces
+from gymnasium import spaces
+from gymnasium.utils import seeding
 
 from utils import helpers as utl
 
@@ -26,7 +27,11 @@ class GridNavi(gym.Env):
         self._max_episode_steps = num_steps
         self.step_count = 0
 
-        self.observation_space = spaces.Box(low=0, high=self.num_cells - 1, shape=(2,))
+        self.observation_space = spaces.Box(
+            low=np.zeros(2, dtype=np.float32),
+            high=np.full(2, self.num_cells - 1, dtype=np.float32),
+            dtype=np.float32,
+        )
         self.action_space = spaces.Discrete(5)  # noop, up, right, down, left
         self.task_dim = 2
         self.belief_dim = 25
@@ -45,11 +50,18 @@ class GridNavi(gym.Env):
         self.num_tasks = self.num_states
 
         # reset the environment state
-        self._env_state = np.array(self.starting_state)
+        self._env_state = np.array(self.starting_state, dtype=np.float32)
         # reset the goal
         self._goal = self.reset_task()
         # reset the belief
         self._belief_state = self._reset_belief()
+
+    def seed(self, seed=None):
+        self.np_random, seed = seeding.np_random(seed)
+        seed32 = int(seed) % (2 ** 32)
+        random.seed(seed32)
+        np.random.seed(seed32)
+        return [seed]
 
     def reset_task(self, task=None):
         if task is None:
@@ -93,10 +105,12 @@ class GridNavi(gym.Env):
     def get_belief(self):
         return self._belief_state.copy()
 
-    def reset(self):
+    def reset(self, seed=None, options=None):
+        if seed is not None:
+            self.seed(seed)
         self.step_count = 0
-        self._env_state = np.array(self.starting_state)
-        return self._env_state.copy()
+        self._env_state = np.array(self.starting_state, dtype=np.float32)
+        return self._env_state.copy(), {}
 
     def state_transition(self, action):
         """
@@ -112,7 +126,7 @@ class GridNavi(gym.Env):
         elif action == 4:  # left
             self._env_state[0] = max([self._env_state[0] - 1, 0])
 
-        return self._env_state
+        return self._env_state.astype(np.float32, copy=False)
 
     def step(self, action):
 
@@ -120,7 +134,8 @@ class GridNavi(gym.Env):
             action = action[0]
         assert self.action_space.contains(action)
 
-        done = False
+        terminated = False
+        truncated = False
 
         # perform state transition
         state = self.state_transition(action)
@@ -128,7 +143,7 @@ class GridNavi(gym.Env):
         # check if maximum step limit is reached
         self.step_count += 1
         if self.step_count >= self._max_episode_steps:
-            done = True
+            terminated = True
 
         # compute reward
         if self._env_state[0] == self._goal[0] and self._env_state[1] == self._goal[1]:
@@ -144,14 +159,16 @@ class GridNavi(gym.Env):
         info = {'task': task,
                 'task_id': task_id,
                 'belief': self.get_belief()}
-        return state, reward, done, info
+        return state.astype(np.float32, copy=False), reward, terminated, truncated, info
 
     def task_to_id(self, goals):
-        mat = torch.arange(0, self.num_cells ** 2).long().reshape((self.num_cells, self.num_cells))
         if isinstance(goals, list) or isinstance(goals, tuple):
             goals = np.array(goals)
         if isinstance(goals, np.ndarray):
             goals = torch.from_numpy(goals)
+        mat = torch.arange(
+            0, self.num_cells ** 2, device=goals.device
+        ).long().reshape((self.num_cells, self.num_cells))
         goals = goals.long()
 
         if goals.dim() == 1:

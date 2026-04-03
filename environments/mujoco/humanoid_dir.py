@@ -3,8 +3,8 @@
     https://github.com/katerakelly/oyster/blob/master/rlkit/envs/humanoid_dir.py
 """
 import numpy as np
-from gym.envs.mujoco import HumanoidEnv as HumanoidEnv
-from gym import spaces
+from gymnasium.envs.mujoco import HumanoidEnv as HumanoidEnv
+from gymnasium import spaces
 
 import random
 
@@ -26,7 +26,9 @@ class HumanoidDirEnv(HumanoidEnv):
         # Override action space to make it range from  (-1, 1)
         assert (self.action_space.low == -self.action_space.high).all() 
         self.action_scale = self.action_space.high[0]
-        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=self.action_space.shape) # Overriding original action_space which is (-0.4, 0.4, shape = (17, ))
+        self.action_space = spaces.Box(
+            low=-1.0, high=1.0, shape=self.action_space.shape, dtype=np.float32
+        )  # Overriding original action_space which is (-0.4, 0.4, shape = (17, ))
         
         
 

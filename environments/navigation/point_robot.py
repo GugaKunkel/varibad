@@ -6,8 +6,9 @@ from utils import helpers as utl
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from gym import Env
-from gym import spaces
+from gymnasium import Env
+from gymnasium import spaces
+from gymnasium.utils import seeding
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -53,14 +54,25 @@ class PointEnv(Env):
 
         self.reset_task()
         self.task_dim = 2
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(2,))
+        self.observation_space = spaces.Box(
+            low=np.full(2, -np.inf, dtype=np.float32),
+            high=np.full(2, np.inf, dtype=np.float32),
+            dtype=np.float32,
+        )
         # we convert the actions from [-1, 1] to [-0.1, 0.1] in the step() function
-        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(2,))
+        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32)
         self._max_episode_steps = max_episode_steps
 
     def sample_task(self):
         goal = self.goal_sampler()
         return goal
+
+    def seed(self, seed=None):
+        self.np_random, seed = seeding.np_random(seed)
+        seed32 = int(seed) % (2 ** 32)
+        random.seed(seed32)
+        np.random.seed(seed32)
+        return [seed]
 
     def set_task(self, task):
         self._goal = task
@@ -75,14 +87,16 @@ class PointEnv(Env):
         return task
 
     def reset_model(self):
-        self._state = np.zeros(2)
+        self._state = np.zeros(2, dtype=np.float32)
         return self._get_obs()
 
-    def reset(self):
-        return self.reset_model()
+    def reset(self, seed=None, options=None):
+        if seed is not None:
+            self.seed(seed)
+        return self.reset_model(), {}
 
     def _get_obs(self):
-        return np.copy(self._state)
+        return np.copy(self._state).astype(np.float32, copy=False)
 
     def step(self, action):
 
@@ -91,10 +105,11 @@ class PointEnv(Env):
 
         self._state = self._state + 0.1 * action
         reward = - np.linalg.norm(self._state - self._goal, ord=2)
-        done = False
-        ob = self._get_obs()
+        terminated = False
+        truncated = False
+        ob = self._get_obs().astype(np.float32, copy=False)
         info = {'task': self.get_task()}
-        return ob, reward, done, info
+        return ob, reward, terminated, truncated, info
 
     def visualise_behaviour(self,
                             env,
@@ -302,15 +317,15 @@ class SparsePointEnv(PointEnv):
         return r
 
     def reset_model(self):
-        self._state = np.array([0, 0])
+        self._state = np.array([0, 0], dtype=np.float32)
         return self._get_obs()
 
     def step(self, action):
-        ob, reward, done, d = super().step(action)
+        ob, reward, terminated, truncated, d = super().step(action)
         sparse_reward = self.sparsify_rewards(reward)
         # make sparse rewards positive
         if reward >= -self.goal_radius:
             sparse_reward += 1
         d.update({'sparse_reward': sparse_reward})
         d.update({'dense_reward': reward})
-        return ob, sparse_reward, done, d
+        return ob, sparse_reward, terminated, truncated, d

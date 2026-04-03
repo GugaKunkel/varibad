@@ -35,7 +35,7 @@ Make sure you have the right MuJoCo version:
 because there's a bug which leads to 80% of the env state being zero).
 - For Walker/Hopper, use `mujoco131`.
 
-For `mujoco131`, use: `gym==0.9.1 gym[mujoco]==0.9.1 mujoco-py==0.5.7`
+For `mujoco131`, use: `gymnasium==0.29.1 mujoco-py==0.5.7`
 
 ### Overview
 

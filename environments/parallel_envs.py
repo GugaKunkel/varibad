@@ -1,7 +1,8 @@
 """
 Based on https://github.com/ikostrikov/pytorch-a2c-ppo-acktr
 """
-import gym
+import gymnasium as gym
+import numpy as np
 import torch
 import random
 
@@ -19,7 +20,18 @@ def make_env(env_id, seed, rank, episodes_per_task, tasks, add_done_info, **kwar
         if tasks is not None:
             env.unwrapped.reset_task = lambda x: env.unwrapped.set_task(random.choice(tasks))
         if seed is not None:
-            env.seed(seed + rank)
+            env_seed = seed + rank
+            if hasattr(env, 'seed'):
+                env.seed(env_seed)
+            else:
+                # Gymnasium-style seeding goes through reset(seed=...).
+                try:
+                    env.reset(seed=env_seed)
+                except TypeError:
+                    # Fallback for legacy envs that don't accept reset(seed=...).
+                    random.seed(env_seed)
+                    np.random.seed(env_seed)
+                    torch.manual_seed(env_seed)
         if str(env.__class__.__name__).find('TimeLimit') >= 0:
             env = TimeLimitMask(env)
         env = VariBadWrapper(env=env, episodes_per_task=episodes_per_task, add_done_info=add_done_info)

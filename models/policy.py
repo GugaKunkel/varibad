@@ -21,8 +21,7 @@ try:
         return x
 
 except ImportError:
-    print('You are probably running MuJoCo 131, so PyTorch Transforms cannot be used. '
-          'Do not set norm_actions_pre_sampling, this will break.')
+    print('You are probably running MuJoCo 131, so PyTorch Transforms cannot be used.')
     pass
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -132,7 +131,7 @@ class Policy(nn.Module):
             self.dist = Categorical(hidden_layers[-1], num_outputs)
         elif action_space.__class__.__name__ == "Box":
             num_outputs = action_space.shape[0]
-            self.dist = DiagGaussian(hidden_layers[-1], num_outputs, init_std, self.args.norm_actions_pre_sampling)
+            self.dist = DiagGaussian(hidden_layers[-1], num_outputs, init_std)
         else:
             raise NotImplementedError
 
@@ -238,7 +237,7 @@ class Policy(nn.Module):
         value, actor_features = self.forward(state, latent, belief, task)
         dist = self.dist(actor_features)
 
-        if self.args.norm_actions_post_sampling:
+        if getattr(self.args, 'norm_actions_post_sampling', False):
             transformation = TanhTransform(cache_size=1)
             dist = TanhNormal(dist, transformation)
             action = transformation(action)
@@ -303,7 +302,7 @@ class Categorical(nn.Module):
 
 
 class DiagGaussian(nn.Module):
-    def __init__(self, num_inputs, num_outputs, init_std, norm_actions_pre_sampling):
+    def __init__(self, num_inputs, num_outputs, init_std):
         super(DiagGaussian, self).__init__()
 
         init_ = lambda m: init(m,
@@ -312,14 +311,11 @@ class DiagGaussian(nn.Module):
 
         self.fc_mean = init_(nn.Linear(num_inputs, num_outputs))
         self.logstd = nn.Parameter(np.log(torch.zeros(num_outputs) + init_std))
-        self.norm_actions_pre_sampling = norm_actions_pre_sampling
         self.min_std = torch.tensor([1e-6]).to(device)
 
     def forward(self, x):
 
         action_mean = self.fc_mean(x)
-        if self.norm_actions_pre_sampling:
-            action_mean = torch.tanh(action_mean)
         std = torch.max(self.min_std, self.logstd.exp())
         dist = FixedNormal(action_mean, std)
 

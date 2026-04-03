@@ -1,7 +1,7 @@
 import os
 import time
 
-import gym
+import gymnasium as gym
 import numpy as np
 import torch
 
@@ -23,7 +23,6 @@ class MetaLearner:
     Meta-Learner class with the main training loop for variBAD.
     """
     def __init__(self, args):
-
         self.args = args
         utl.seed(self.args.seed, self.args.deterministic_execution)
 

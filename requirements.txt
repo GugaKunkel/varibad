@@ -1,7 +1,7 @@
 numpy==1.22.0
 torch==1.5.1
 torchvision==0.6.1
-gym==0.17.2
+gymnasium==0.29.1
 seaborn
 
 # only for the mujoco environments

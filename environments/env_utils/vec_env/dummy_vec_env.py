@@ -2,7 +2,7 @@
 Taken from https://github.com/openai/baselines
 """
 import numpy as np
-from gym import spaces
+from gymnasium import spaces
 
 from . import VecEnv
 from .util import copy_obs_dict, dict_to_obs, obs_space_info

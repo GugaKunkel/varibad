@@ -1,6 +1,6 @@
 import warnings
 
-import gym
+import gymnasium as gym
 import numpy as np
 import torch
 from torch.nn import functional as F
@@ -169,7 +169,8 @@ class VaribadVAE:
                 rew_pred = torch.sigmoid(rew_pred)
 
             env = gym.make(self.args.env_name)
-            state_indices = env.task_to_id(next_obs).to(device)
+            env_task = env.unwrapped if hasattr(env, 'unwrapped') else env
+            state_indices = env_task.task_to_id(next_obs).to(device)
             if state_indices.dim() < rew_pred.dim():
                 state_indices = state_indices.unsqueeze(-1)
             rew_pred = rew_pred.gather(dim=-1, index=state_indices)
@@ -204,7 +205,8 @@ class VaribadVAE:
 
         if self.args.task_pred_type == 'task_id':
             env = gym.make(self.args.env_name)
-            task_target = env.task_to_id(task).to(device)
+            env_task = env.unwrapped if hasattr(env, 'unwrapped') else env
+            task_target = env_task.task_to_id(task).to(device)
             # expand along first axis (number of ELBO terms)
             task_target = task_target.expand(task_pred.shape[:-1]).reshape(-1)
             loss_task = F.cross_entropy(task_pred.view(-1, task_pred.shape[-1]),
@@ -256,7 +258,6 @@ class VaribadVAE:
         num_unique_trajectory_lens = len(np.unique(trajectory_lens))
 
         assert (num_unique_trajectory_lens == 1) or (self.args.vae_subsample_elbos and self.args.vae_subsample_decodes)
-        assert not self.args.decode_only_past
 
         # cut down the batch to the longest trajectory length
         # this way we can preserve the structure
@@ -295,7 +296,7 @@ class VaribadVAE:
                 if max_traj_len < self.args.vae_subsample_elbos:
                     warnings.warn('The required number of ELBOs is larger than the shortest trajectory, '
                                   'so there will be duplicates in your batch.'
-                                  'To avoid this use --split_batches_by_elbo or --split_batches_by_task.')
+                                  'To avoid this use --split_batches_by_task.')
             task_indices = torch.arange(batchsize).repeat(self.args.vae_subsample_elbos)  # for selection mask
             latent_samples = latent_samples[elbo_indices, task_indices, :].reshape((self.args.vae_subsample_elbos, batchsize, -1))
             num_elbos = latent_samples.shape[0]
@@ -397,125 +398,6 @@ class VaribadVAE:
 
         return rew_reconstruction_loss, state_reconstruction_loss, task_reconstruction_loss, kl_loss
 
-    def compute_loss_split_batches_by_elbo(self, latent_mean, latent_logvar, vae_prev_obs, vae_next_obs, vae_actions,
-                                           vae_rewards, vae_tasks, trajectory_lens):
-
-        """
-        Loop over the elvo_t terms to compute losses per t.
-        Saves some memory if batch sizes are very large,
-        or if trajectory lengths are different, or if we decode only the past.
-        """
-
-        rew_reconstruction_loss = []
-        state_reconstruction_loss = []
-        task_reconstruction_loss = []
-
-        assert len(np.unique(trajectory_lens)) == 1
-        n_horizon = np.unique(trajectory_lens)[0]
-        n_elbos = latent_mean.shape[0]  # includes the prior
-
-        # for each elbo term (including one for the prior)...
-        for idx_elbo in range(n_elbos):
-
-            # get the embedding values (size: traj_length+1 * latent_dim; the +1 is for the prior)
-            curr_means = latent_mean[idx_elbo]
-            curr_logvars = latent_logvar[idx_elbo]
-
-            # take one sample for each task
-            if not self.args.disable_stochasticity_in_latent:
-                curr_samples = self.encoder._sample_gaussian(curr_means, curr_logvars)
-            else:
-                curr_samples = torch.cat((latent_mean, latent_logvar))
-
-            # if the size of what we decode is always the same, we can speed up creating the batches
-            if not self.args.decode_only_past:
-
-                # expand the latent to match the (x, y) pairs of the decoder
-                dec_embedding = curr_samples.unsqueeze(0).expand((n_horizon, *curr_samples.shape))
-                dec_embedding_task = curr_samples
-
-                dec_prev_obs = vae_prev_obs
-                dec_next_obs = vae_next_obs
-                dec_actions = vae_actions
-                dec_rewards = vae_rewards
-
-            # otherwise, we unfortunately have to loop!
-            # loop through the lengths we are feeding into the encoder for that trajectory (starting with prior)
-            # (these are the different ELBO_t terms)
-            else:
-
-                # get the index until which we want to decode
-                # (i.e. eithe runtil curr timestep or entire trajectory including future)
-                if self.args.decode_only_past:
-                    dec_from = 0
-                    dec_until = idx_elbo
-                else:
-                    dec_from = 0
-                    dec_until = n_horizon
-
-                if dec_from == dec_until:
-                    continue
-
-                # (1) ... get the latent sample after feeding in some data (determined by len_encoder) & expand (to number of outputs)
-                # num latent samples x embedding size
-                dec_embedding = curr_samples.unsqueeze(0).expand(dec_until - dec_from, *curr_samples.shape)
-                dec_embedding_task = curr_samples
-                # (2) ... get the predictions for the trajectory until the timestep we're interested in
-                dec_prev_obs = vae_prev_obs[dec_from:dec_until]
-                dec_next_obs = vae_next_obs[dec_from:dec_until]
-                dec_actions = vae_actions[dec_from:dec_until]
-                dec_rewards = vae_rewards[dec_from:dec_until]
-
-            if self.args.decode_reward:
-                # compute reconstruction loss for this trajectory (for each timestep that was encoded, decode everything and sum it up)
-                # size: if all trajectories are of same length [num_elbo_terms x num_reconstruction_terms], otherwise it's flattened into one
-                rrc = self.compute_rew_reconstruction_loss(dec_embedding, dec_prev_obs, dec_next_obs, dec_actions,
-                                                           dec_rewards)
-                # sum up the reconstruction terms; average over tasks
-                rrc = rrc.sum(dim=0).mean()
-                rew_reconstruction_loss.append(rrc)
-
-            if self.args.decode_state:
-                src = self.compute_state_reconstruction_loss(dec_embedding, dec_prev_obs, dec_next_obs, dec_actions)
-                # sum up the reconstruction terms; average over tasks
-                src = src.sum(dim=0).mean()
-                state_reconstruction_loss.append(src)
-
-            if self.args.decode_task:
-                trc = self.compute_task_reconstruction_loss(dec_embedding_task, vae_tasks)
-                # average across tasks
-                trc = trc.mean()
-                task_reconstruction_loss.append(trc)
-
-        # sum the ELBO_t terms
-        if self.args.decode_reward:
-            rew_reconstruction_loss = torch.stack(rew_reconstruction_loss)
-            rew_reconstruction_loss = rew_reconstruction_loss.sum()
-        else:
-            rew_reconstruction_loss = 0
-
-        if self.args.decode_state:
-            state_reconstruction_loss = torch.stack(state_reconstruction_loss)
-            state_reconstruction_loss = state_reconstruction_loss.sum()
-        else:
-            state_reconstruction_loss = 0
-
-        if self.args.decode_task:
-            task_reconstruction_loss = torch.stack(task_reconstruction_loss)
-            task_reconstruction_loss = task_reconstruction_loss.sum()
-        else:
-            task_reconstruction_loss = 0
-
-        if not self.args.disable_kl_term:
-            # compute the KL term for each ELBO term of the current trajectory
-            kl_loss = self.compute_kl_loss(latent_mean, latent_logvar, None)
-            # sum the elbos, average across tasks
-            kl_loss = kl_loss.sum(dim=0).mean()
-        else:
-            kl_loss = 0
-
-        return rew_reconstruction_loss, state_reconstruction_loss, task_reconstruction_loss, kl_loss
-
     def compute_vae_loss(self, update=False, pretrain_index=None):
         """ Returns the VAE loss """
 
@@ -544,10 +426,6 @@ class VaribadVAE:
             losses = self.compute_loss_split_batches_by_task(latent_mean, latent_logvar, vae_prev_obs, vae_next_obs,
                                                              vae_actions, vae_rewards, vae_tasks,
                                                              trajectory_lens, len_encoder)
-        elif self.args.split_batches_by_elbo:
-            losses = self.compute_loss_split_batches_by_elbo(latent_mean, latent_logvar, vae_prev_obs, vae_next_obs,
-                                                             vae_actions, vae_rewards, vae_tasks,
-                                                             trajectory_lens)
         else:
             losses = self.compute_loss(latent_mean, latent_logvar, vae_prev_obs, vae_next_obs, vae_actions,
                                        vae_rewards, vae_tasks, trajectory_lens)

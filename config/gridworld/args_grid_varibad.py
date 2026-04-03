@@ -32,8 +32,6 @@ def get_args(rest_args):
     parser.add_argument('--norm_belief_for_policy', type=boolean_argument, default=True, help='normalise belief input')
     parser.add_argument('--norm_task_for_policy', type=boolean_argument, default=True, help='normalise task input')
     parser.add_argument('--norm_rew_for_policy', type=boolean_argument, default=True, help='normalise rew for RL train')
-    parser.add_argument('--norm_actions_pre_sampling', type=boolean_argument, default=False, help='normalise policy output')
-    parser.add_argument('--norm_actions_post_sampling', type=boolean_argument, default=False, help='normalise policy output')
 
     # network
     parser.add_argument('--policy_layers', nargs='+', default=[32])
@@ -101,8 +99,6 @@ def get_args(rest_args):
 
     parser.add_argument('--split_batches_by_task', type=boolean_argument, default=False,
                         help='split batches up by task (to save memory or if tasks are of different length)')
-    parser.add_argument('--split_batches_by_elbo', type=boolean_argument, default=False,
-                        help='split batches up by elbo term (to save memory of if ELBOs are of different length)')
 
     # - encoder
     parser.add_argument('--action_embedding_size', type=int, default=0)

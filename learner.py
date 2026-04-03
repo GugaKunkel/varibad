@@ -6,7 +6,7 @@ Can be used to train for good average performance, or for the oracle environment
 import os
 import time
 
-import gym
+import gymnasium as gym
 import numpy as np
 import torch
 

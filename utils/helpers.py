@@ -61,7 +61,7 @@ def reset_env(env, args, indices=None, state=None):
 
 
 def squash_action(action, args):
-    if args.norm_actions_post_sampling:
+    if getattr(args, 'norm_actions_post_sampling', False):
         return torch.tanh(action)
     else:
         return action

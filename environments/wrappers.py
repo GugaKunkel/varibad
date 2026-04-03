@@ -1,7 +1,8 @@
-import gym
+import importlib
+
+import gymnasium as gym
 import numpy as np
-from gym import spaces
-from gym.envs.registration import load
+from gymnasium import spaces
 
 from environments.mujoco import rand_param_envs
 
@@ -14,7 +15,8 @@ except AttributeError:
 
 def mujoco_wrapper(entry_point, **kwargs):
     # Load the environment from its entry point
-    env_cls = load(entry_point)
+    module_name, attr_name = entry_point.split(':')
+    env_cls = getattr(importlib.import_module(module_name), attr_name)
     env = env_cls(**kwargs)
     return env
 
@@ -57,10 +59,14 @@ class VariBadWrapper(gym.Wrapper):
                                                                             rand_param_envs.gym.spaces.box.Box):
                 if len(self.observation_space.shape) > 1:
                     raise ValueError  # can't add additional info for obs of more than 1D
-                self.observation_space = spaces.Box(low=np.array([*self.observation_space.low, 0]),
-                                                    # shape will be deduced from this
-                                                    high=np.array([*self.observation_space.high, 1])
-                                                    )
+                low = np.concatenate(
+                    (self.observation_space.low.astype(np.float32), np.array([0.0], dtype=np.float32))
+                )
+                high = np.concatenate(
+                    (self.observation_space.high.astype(np.float32), np.array([1.0], dtype=np.float32))
+                )
+                # shape will be deduced from low/high arrays
+                self.observation_space = spaces.Box(low=low, high=high, dtype=np.float32)
             else:
                 # TODO: add something simliar for the other possible spaces,
                 # "Space", "Discrete", "MultiDiscrete", "MultiBinary", "Tuple", "Dict", "flatdim", "flatten", "unflatten"
@@ -90,13 +96,18 @@ class VariBadWrapper(gym.Wrapper):
     def reset(self, task=None):
         """ Resets the BAMDP """
 
-        # reset task
-        self.env.reset_task(task)
+        # reset task (Gymnasium wrappers like OrderEnforcing may not expose custom methods)
+        if hasattr(self.env, 'reset_task'):
+            self.env.reset_task(task)
+        else:
+            self.env.unwrapped.reset_task(task)
         # normal reset
         try:
             state = self.env.reset()
         except AttributeError:
             state = self.env.unwrapped.reset()
+        if isinstance(state, tuple):
+            state = state[0]
 
         self.episode_count = 0
         self.step_count_bamdp = 0
@@ -109,6 +120,8 @@ class VariBadWrapper(gym.Wrapper):
     def reset_mdp(self):
         """ Resets the underlying MDP only (*not* the task). """
         state = self.env.reset()
+        if isinstance(state, tuple):
+            state = state[0]
         if self.add_done_info:
             state = np.concatenate((state, [0.0]))
         self.done_mdp = False
@@ -117,7 +130,12 @@ class VariBadWrapper(gym.Wrapper):
     def step(self, action):
 
         # do normal environment step in MDP
-        state, reward, self.done_mdp, info = self.env.step(action)
+        step_out = self.env.step(action)
+        if len(step_out) == 5:
+            state, reward, terminated, truncated, info = step_out
+            self.done_mdp = bool(terminated or truncated)
+        else:
+            state, reward, self.done_mdp, info = step_out
 
         info['done_mdp'] = self.done_mdp
 
@@ -160,7 +178,12 @@ class VariBadWrapper(gym.Wrapper):
 class TimeLimitMask(gym.Wrapper):
 
     def step(self, action):
-        obs, rew, done, info = self.env.step(action)
+        step_out = self.env.step(action)
+        if len(step_out) == 5:
+            obs, rew, terminated, truncated, info = step_out
+            done = bool(terminated or truncated)
+        else:
+            obs, rew, done, info = step_out
         if done and self.env._max_episode_steps == self.env._elapsed_steps:
             info['bad_transition'] = True
         return obs, rew, done, info
