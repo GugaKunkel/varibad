@@ -98,12 +98,6 @@ class Policy(nn.Module):
         else:
             raise NotImplementedError
 
-    def get_actor_params(self):
-        return [*self.actor.parameters(), *self.dist.parameters()]
-
-    def get_critic_params(self):
-        return [*self.critic.parameters(), *self.critic_linear.parameters()]
-
     def forward_actor(self, inputs):
         h = inputs
         for i in range(len(self.actor_layers)):
@@ -121,7 +115,6 @@ class Policy(nn.Module):
     def forward(self, state, latent, belief):
 
         # handle inputs (normalise + embed)
-
         if self.pass_state_to_policy:
             if self.norm_state:
                 state = (state - self.state_rms.mean) / torch.sqrt(self.state_rms.var + 1e-8)
@@ -184,6 +177,7 @@ class Policy(nn.Module):
             self.latent_rms.update(latent)
         if self.pass_belief_to_policy and self.norm_belief:
             self.belief_rms.update(policy_storage.beliefs[:-1])
+
     def evaluate_actions(self, state, latent, belief, action):
 
         value, actor_features = self.forward(state, latent, belief)
@@ -261,16 +255,3 @@ class DiagGaussian(nn.Module):
 
         return dist
 
-
-class AddBias(nn.Module):
-    def __init__(self, bias):
-        super(AddBias, self).__init__()
-        self._bias = nn.Parameter(bias.unsqueeze(1))
-
-    def forward(self, x):
-        if x.dim() == 2:
-            bias = self._bias.t().reshape(1, -1)
-        else:
-            bias = self._bias.t().reshape(1, -1, 1, 1)
-
-        return x + bias

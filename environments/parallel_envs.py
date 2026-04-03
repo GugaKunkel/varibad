@@ -94,7 +94,6 @@ class VecPyTorch(VecEnvWrapper):
         return state
 
     def step_async(self, actions):
-        # actions = actions.squeeze(1).cpu().numpy()
         actions = actions.cpu().numpy()
         self.venv.step_async(actions)
 

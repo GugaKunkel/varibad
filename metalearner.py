@@ -99,7 +99,6 @@ class MetaLearner:
             policy_net,
             self.args.policy_value_loss_coef,
             self.args.policy_entropy_coef,
-            train_steps=self.num_updates,
             lr=self.args.lr_policy,
             eps=self.args.policy_eps,
             ppo_epoch=self.args.ppo_num_epochs,
