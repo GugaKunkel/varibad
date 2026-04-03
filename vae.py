@@ -6,7 +6,7 @@ import torch
 # from torch.nn import functional as F
 # import torch.nn as nn
 
-from models.decoder import StateTransitionDecoder, RewardDecoder, TaskDecoder
+from models.decoder import StateTransitionDecoder, RewardDecoder
 from models.encoder import RNNEncoder
 from utils.helpers import get_task_dim, get_num_tasks
 # from utils.storage_vae import RolloutStorageVAE
@@ -78,50 +78,30 @@ class VaribadVAE:
         if self.args.decode_state:
             state_decoder = StateTransitionDecoder(
                 args=self.args,
-            #     layers=self.args.state_decoder_layers,
-            #     latent_dim=latent_dim,
-            #     action_dim=self.args.action_dim,
-            #     action_embed_dim=self.args.action_embedding_size,
-            #     state_dim=self.args.state_dim,
-            #     state_embed_dim=self.args.state_embedding_size,
-            #     pred_type=self.args.state_pred_type,
+                layers=self.args.state_decoder_layers,
+                latent_dim=latent_dim,
+                action_dim=self.args.action_dim,
+                action_embed_dim=self.args.action_embedding_size,
+                state_dim=self.args.state_dim,
+                state_embed_dim=self.args.state_embedding_size,
+                pred_type=self.args.state_pred_type,
             ).to(device)
         else:
             state_decoder = None
 
-#         # initialise reward decoder for VAE
-#         if self.args.decode_reward:
-#             reward_decoder = RewardDecoder(
-#                 args=self.args,
-#                 layers=self.args.reward_decoder_layers,
-#                 latent_dim=latent_dim,
-#                 state_dim=self.args.state_dim,
-#                 state_embed_dim=self.args.state_embedding_size,
-#                 action_dim=self.args.action_dim,
-#                 action_embed_dim=self.args.action_embedding_size,
-#                 num_states=self.args.num_states,
-#                 multi_head=self.args.multihead_for_reward,
-#                 pred_type=self.args.rew_pred_type,
-#                 input_prev_state=self.args.input_prev_state,
-#                 input_action=self.args.input_action,
-#             ).to(device)
-#         else:
-#             reward_decoder = None
-
-#         # initialise task decoder for VAE
-#         if self.args.decode_task:
-#             assert self.task_dim != 0
-#             task_decoder = TaskDecoder(
-#                 latent_dim=latent_dim,
-#                 layers=self.args.task_decoder_layers,
-#                 task_dim=self.task_dim,
-#                 num_tasks=self.num_tasks,
-#                 pred_type=self.args.task_pred_type,
-#             ).to(device)
-#         else:
-#             task_decoder = None
-
-#         return state_decoder, reward_decoder, task_decoder
+        # initialise reward decoder for VAE
+        if self.args.decode_reward:
+            reward_decoder = RewardDecoder(
+                args=self.args,
+                layers=self.args.reward_decoder_layers,
+                latent_dim=latent_dim,
+                num_states=self.args.num_states,
+                input_prev_state=self.args.input_prev_state,
+                input_action=self.args.input_action,
+            ).to(device)
+        else:
+            reward_decoder = None
+        return state_decoder, reward_decoder
 
 #     def compute_state_reconstruction_loss(self, latent, prev_obs, next_obs, action, return_predictions=False):
 #         """ Compute state reconstruction loss.

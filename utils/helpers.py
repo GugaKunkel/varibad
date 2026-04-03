@@ -29,14 +29,6 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         
 #     return state, belief, task
 
-
-# def squash_action(action, args):
-#     if getattr(args, 'norm_actions_post_sampling', False):
-#         return torch.tanh(action)
-#     else:
-#         return action
-
-
 # def env_step(env, action, args):
 #     act = squash_action(action.detach(), args)
 #     next_obs, reward, terminated, truncated, infos = env.step(act)
