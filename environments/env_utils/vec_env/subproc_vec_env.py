@@ -33,11 +33,11 @@ def worker(remote, parent_remote, env_fn_wrapper):
             elif cmd == 'get_task':
                 remote.send(env.get_task())
             elif cmd == 'task_dim':
-                remote.send(env.task_dim)
+                remote.send(env.unwrapped.task_dim)
             elif cmd == 'get_belief':
                 remote.send(env.get_belief())
             elif cmd == 'belief_dim':
-                remote.send(env.belief_dim)
+                remote.send(env.unwrapped.belief_dim)
             elif cmd == 'reset_task':
                 env.unwrapped.reset_task(data)
             else:

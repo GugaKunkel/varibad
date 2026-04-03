@@ -260,7 +260,7 @@ class GridNavi(gym.Env):
 
         # --- roll out policy ---
 
-        env.reset_task()
+        env.unwrapped.reset_task()
         [state, belief, task] = utl.reset_env(env, args)
         start_obs = state.clone()
 
@@ -574,7 +574,7 @@ def plot_belief(env, beliefs, args):
         for j in range(num_cells):
             pos_i = i
             pos_j = j
-            idx = unwrapped_env.task_to_id(torch.tensor([[pos_i, pos_j]]))
+            idx = unwrapped_env.unwrapped.task_to_id(torch.tensor([[pos_i, pos_j]]))
             alpha = beliefs[idx]
             alphas.append(alpha.item())
     alphas = np.array(alphas)

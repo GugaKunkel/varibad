@@ -206,7 +206,7 @@ def get_test_rollout(args, env, policy, encoder=None):
     # --- roll out policy ---
 
     # (re)set environment
-    env.reset_task()
+    env.unwrapped.reset_task()
     state, belief, task = utl.reset_env(env, args)
     state = state.reshape((1, -1)).to(device)
     task = task.view(-1) if task is not None else None

@@ -74,10 +74,7 @@ class VariBadWrapper(gym.Wrapper):
     def reset(self, task=None):
         """ Resets the BAMDP """
         # reset task (Gymnasium wrappers like OrderEnforcing may not expose custom methods)
-        if hasattr(self.env, 'reset_task'):
-            self.env.reset_task(task)
-        else:
-            self.env.unwrapped.reset_task(task)
+        self.env.unwrapped.reset_task(task)
         # normal reset
         try:
             state = self.env.reset()
