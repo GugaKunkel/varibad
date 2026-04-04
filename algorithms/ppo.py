@@ -12,7 +12,6 @@ class PPO:
                  actor_critic,
                  value_loss_coef,
                  entropy_coef,
-                 train_steps,
                  optimiser_vae=None,
                  lr=None,
                  clip_param=0.2,

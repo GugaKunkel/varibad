@@ -49,7 +49,7 @@ class MetaLearner:
         self.args.task_dim = self.envs.task_dim
         self.args.belief_dim = self.envs.belief_dim
         self.args.num_states = self.envs.num_states
-        
+
         # get policy output (action) dimensions
         self.args.action_space = self.envs.action_space
         if isinstance(self.envs.action_space, gym.spaces.discrete.Discrete):
@@ -101,7 +101,6 @@ class MetaLearner:
             policy_net,
             self.args.policy_value_loss_coef,
             self.args.policy_entropy_coef,
-            train_steps=self.num_updates,
             lr=self.args.lr_policy,
             eps=self.args.policy_eps,
             ppo_epoch=self.args.ppo_num_epochs,
