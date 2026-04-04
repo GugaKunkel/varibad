@@ -23,7 +23,7 @@ class MetaLearner:
     """
     def __init__(self, args):
         self.args = args
-        utl.seed(self.args.seed, self.args.deterministic_execution)
+        utl.seed(self.args.seed)
 
         # calculate number of updates and keep count of frames/iterations
         self.num_updates = int(args.num_frames) // args.policy_num_steps // args.num_processes
