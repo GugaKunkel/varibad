@@ -25,7 +25,7 @@ class MetaLearner:
         self.args = args
         utl.seed(self.args.seed)
 
-        # calculate number of updates and keep count of frames/iterations
+        # calculate number of training updates to do and keep count of frames/iterations
         self.num_updates = int(args.num_frames) // args.policy_num_steps // args.num_processes
         self.frames = 0
         self.iter_idx = -1
@@ -33,24 +33,23 @@ class MetaLearner:
         # initialise tensorboard logger
         self.logger = TBLogger(self.args, self.args.exp_label)
 
-        # initialise environments
+        # initialise vectorized environments
         self.envs = make_vec_envs(env_name=args.env_name, seed=args.seed, num_processes=args.num_processes,
                                   gamma=args.policy_gamma, device=device,
                                   episodes_per_task=self.args.max_rollouts_per_task,
                                   normalise_rew=args.norm_rew_for_policy, ret_rms=None,
                                   tasks=None
                                   )
-        self.train_tasks = None
 
         # calculate what the maximum length of the trajectories is
-        self.args.max_trajectory_len = self.envs._max_episode_steps
-        self.args.max_trajectory_len *= self.args.max_rollouts_per_task
+        self.args.max_trajectory_len = self.envs._max_episode_steps * self.args.max_rollouts_per_task
 
         # get policy input dimensions
         self.args.state_dim = self.envs.observation_space.shape[0]
         self.args.task_dim = self.envs.task_dim
         self.args.belief_dim = self.envs.belief_dim
         self.args.num_states = self.envs.num_states
+        
         # get policy output (action) dimensions
         self.args.action_space = self.envs.action_space
         if isinstance(self.envs.action_space, gym.spaces.discrete.Discrete):
@@ -328,7 +327,7 @@ class MetaLearner:
                                          compute_rew_reconstruction_loss=self.vae.compute_rew_reconstruction_loss,
                                          compute_state_reconstruction_loss=self.vae.compute_state_reconstruction_loss,
                                          compute_kl_loss=self.vae.compute_kl_loss,
-                                         tasks=self.train_tasks,
+                                         tasks=None,
                                          )
 
         # --- evaluate policy ----
@@ -341,7 +340,7 @@ class MetaLearner:
                                                     ret_rms=ret_rms,
                                                     encoder=self.vae.encoder,
                                                     iter_idx=self.iter_idx,
-                                                    tasks=self.train_tasks,
+                                                    tasks=None,
                                                     )
 
             # log the return avg/std across tasks (=processes)
