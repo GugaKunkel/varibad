@@ -401,7 +401,8 @@ def plot_rew_reconstruction(env,
     plt.title('output - variance')
 
     plt.subplot(1, 3, 3)
-    rew_pred_entropy = -(test_rew_vars * np.log(test_rew_vars)).sum(axis=1)
+    p = np.clip(test_rew_vars, 1e-12, 1.0)
+    rew_pred_entropy = -(p * np.log(p)).sum(axis=1)
     plt.plot(range(len(test_rew_vars)), rew_pred_entropy, 'r.-')
     for tj in np.cumsum([0, *[env._max_episode_steps for _ in range(num_rollouts)]]):
         span = rew_pred_entropy.max() - rew_pred_entropy.min()
@@ -523,7 +524,7 @@ def compute_beliefs(env, args, reward_decoder, latent_mean, latent_logvar, goal)
     samples = utl.sample_gaussian(latent_mean.view(-1), latent_logvar.view(-1), 100)
 
     # compute reward predictions for those
-    rew_pred = reward_decoder(samples, None)
+    rew_pred = reward_decoder(samples)
     if args.rew_pred_type == 'categorical':
         rew_pred = F.softmax(rew_pred, dim=-1)
     elif args.rew_pred_type == 'bernoulli':

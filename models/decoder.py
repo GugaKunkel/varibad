@@ -9,7 +9,6 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class StateTransitionDecoder(nn.Module):
     def __init__(self,
-                 args,
                  layers,
                  latent_dim,
                  action_dim,
@@ -18,9 +17,6 @@ class StateTransitionDecoder(nn.Module):
                  state_embed_dim
                  ):
         super(StateTransitionDecoder, self).__init__()
-
-        self.args = args
-
         self.state_encoder = utl.FeatureExtractor(state_dim, state_embed_dim, F.relu)
         self.action_encoder = utl.FeatureExtractor(action_dim, action_embed_dim, F.relu)
 
@@ -46,20 +42,11 @@ class StateTransitionDecoder(nn.Module):
 
 class RewardDecoder(nn.Module):
     def __init__(self,
-                 args,
                  layers,
                  latent_dim,
                  num_states,
-                 input_prev_state=True,
-                 input_action=True,
                  ):
         super(RewardDecoder, self).__init__()
-
-        self.args = args
-
-        self.input_prev_state = input_prev_state
-        self.input_action = input_action
-
         # one output head per state to predict rewards
         curr_input_dim = latent_dim
         self.fc_layers = nn.ModuleList([])
@@ -68,7 +55,7 @@ class RewardDecoder(nn.Module):
             curr_input_dim = layers[i]
         self.fc_out = nn.Linear(curr_input_dim, num_states)
 
-    def forward(self, latent_state, next_state, prev_state=None, actions=None):
+    def forward(self, latent_state):
         h = latent_state.clone()
         for i in range(len(self.fc_layers)):
             h = F.relu(self.fc_layers[i](h))

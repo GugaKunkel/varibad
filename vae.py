@@ -71,7 +71,6 @@ class VaribadVAE:
         # initialise state decoder for VAE
         if self.args.decode_state:
             state_decoder = StateTransitionDecoder(
-                args=self.args,
                 layers=self.args.state_decoder_layers,
                 latent_dim=latent_dim,
                 action_dim=self.args.action_dim,
@@ -85,12 +84,9 @@ class VaribadVAE:
         # initialise reward decoder for VAE
         if self.args.decode_reward:
             reward_decoder = RewardDecoder(
-                args=self.args,
                 layers=self.args.reward_decoder_layers,
                 latent_dim=latent_dim,
                 num_states=self.args.num_states,
-                input_prev_state=self.args.input_prev_state,
-                input_action=self.args.input_action,
             ).to(device)
         else:
             reward_decoder = None
@@ -129,16 +125,6 @@ class VaribadVAE:
                 loss_rew = (rew_pred - reward).pow(2).mean(dim=-1)
             elif self.args.rew_pred_type in ['categorical', 'bernoulli']:
                 loss_rew = F.binary_cross_entropy(rew_pred, rew_target, reduction='none').mean(dim=-1)
-            else:
-                raise NotImplementedError
-        else:
-            rew_pred = self.reward_decoder(latent, next_obs, prev_obs, action.float())
-            if self.args.rew_pred_type == 'bernoulli':  # TODO: untested!
-                rew_pred = torch.sigmoid(rew_pred)
-                rew_target = (reward == 1).float()  # TODO: necessary?
-                loss_rew = F.binary_cross_entropy(rew_pred, rew_target, reduction='none').mean(dim=-1)
-            elif self.args.rew_pred_type == 'deterministic':
-                loss_rew = (rew_pred - reward).pow(2).mean(dim=-1)
             else:
                 raise NotImplementedError
 
