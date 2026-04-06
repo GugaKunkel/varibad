@@ -2,7 +2,7 @@
 Main script to start experiments.
 Loads gridworld_varibad parameters and starts training.
 """
-from config.gridworld import args_grid_varibad
+from config import args_grid_varibad
 from metalearner import MetaLearner
 
 def main():
