@@ -46,7 +46,6 @@ class MetaLearner:
 
         # get policy input dimensions
         self.args.state_dim = self.envs.observation_space.shape[0]
-        self.args.task_dim = self.envs.task_dim
         self.args.belief_dim = self.envs.belief_dim
         self.args.num_states = self.envs.num_states
 
@@ -69,7 +68,6 @@ class MetaLearner:
                              state_dim=self.args.state_dim,
                              latent_dim=self.args.latent_dim,
                              belief_dim=self.args.belief_dim,
-                             task_dim=self.args.task_dim,
                              action_space=self.args.action_space,
                              hidden_size=self.args.encoder_gru_hidden_size,
                              normalise_rewards=self.args.norm_rew_for_policy,

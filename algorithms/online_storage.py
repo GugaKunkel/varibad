@@ -14,14 +14,13 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class OnlineStorage(object):
     def __init__(self,
                  args, num_steps, num_processes,
-                 state_dim, belief_dim, task_dim,
+                 state_dim, belief_dim,
                  action_space,
                  hidden_size, latent_dim, normalise_rewards):
 
         self.args = args
         self.state_dim = state_dim
         self.belief_dim = belief_dim
-        self.task_dim = task_dim
 
         self.num_steps = num_steps  # how many steps to do per update (= size of online buffer)
         self.num_processes = num_processes  # number of parallel processes
@@ -53,10 +52,7 @@ class OnlineStorage(object):
             self.beliefs = torch.zeros(num_steps + 1, num_processes, belief_dim)
         else:
             self.beliefs = None
-        if self.args.pass_task_to_policy:
-            self.tasks = torch.zeros(num_steps + 1, num_processes, task_dim)
-        else:
-            self.tasks = None
+        self.tasks = None
 
         # rewards and end of episodes
         self.rewards_raw = torch.zeros(num_steps, num_processes, 1)
@@ -93,8 +89,6 @@ class OnlineStorage(object):
             self.next_state = self.next_state.to(device)
         if self.args.pass_belief_to_policy:
             self.beliefs = self.beliefs.to(device)
-        if self.args.pass_task_to_policy:
-            self.tasks = self.tasks.to(device)
         self.rewards_raw = self.rewards_raw.to(device)
         self.rewards_normalised = self.rewards_normalised.to(device)
         self.done = self.done.to(device)
@@ -124,8 +118,6 @@ class OnlineStorage(object):
         self.prev_state[self.step + 1].copy_(state)
         if self.args.pass_belief_to_policy:
             self.beliefs[self.step + 1].copy_(belief)
-        if self.args.pass_task_to_policy:
-            self.tasks[self.step + 1].copy_(task)
         if self.args.pass_latent_to_policy:
             self.latent_samples.append(latent_sample.detach().clone())
             self.latent_mean.append(latent_mean.detach().clone())
@@ -147,8 +139,6 @@ class OnlineStorage(object):
         self.prev_state[0].copy_(self.prev_state[-1])
         if self.args.pass_belief_to_policy:
             self.beliefs[0].copy_(self.beliefs[-1])
-        if self.args.pass_task_to_policy:
-            self.tasks[0].copy_(self.tasks[-1])
         if self.args.pass_latent_to_policy:
             self.latent_samples = []
             self.latent_mean = []
@@ -251,10 +241,7 @@ class OnlineStorage(object):
                 belief_batch = self.beliefs[:-1].reshape(-1, *self.beliefs.size()[2:])[indices]
             else:
                 belief_batch = None
-            if self.args.pass_task_to_policy:
-                task_batch = self.tasks[:-1].reshape(-1, *self.tasks.size()[2:])[indices]
-            else:
-                task_batch = None
+            task_batch = None
 
             actions_batch = self.actions.reshape(-1, self.actions.size(-1))[indices]
 
