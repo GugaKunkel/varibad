@@ -85,22 +85,6 @@ def update_encoding(encoder, next_obs, action, reward, done, hidden_state):
     return latent_sample, latent_mean, latent_logvar, hidden_state
 
 
-def seed(seed, deterministic_execution=False):
-    print('Seeding random, torch, numpy.')
-    random.seed(seed)
-    torch.manual_seed(seed)
-    torch.random.manual_seed(seed)
-    np.random.seed(seed)
-
-    if deterministic_execution:
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-    else:
-        print('Note that due to parallel processing results will be similar but not identical. '
-              'Use only one process and set --deterministic_execution to True if you want identical results '
-              '(only recommended for debugging).')
-
-
 class FeatureExtractor(nn.Module):
     """ Used for extrating features for states/actions/rewards """
     def __init__(self, input_size, output_size, activation_function):
@@ -171,6 +155,13 @@ def update_mean_var_count_from_moments(mean, var, count, batch_mean, batch_var, 
 def boolean_argument(value):
     """Convert a string value to boolean."""
     return bool(strtobool(value))
+
+def seed(seed):
+    print('Seeding random, torch, numpy.')
+    random.seed(seed)
+    torch.manual_seed(seed)
+    torch.random.manual_seed(seed)
+    np.random.seed(seed)
 
 
 def clip(value, low, high):

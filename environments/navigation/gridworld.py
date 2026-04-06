@@ -519,9 +519,6 @@ def plot_behaviour(env, observations, goal):
 
 
 def compute_beliefs(env, args, reward_decoder, latent_mean, latent_logvar, goal):
-    num_cells = env.observation_space.high[0] + 1
-    unwrapped_env = env.venv.unwrapped.envs[0]
-
     # take several samples from the latent distribution
     samples = utl.sample_gaussian(latent_mean.view(-1), latent_logvar.view(-1), 100)
 
