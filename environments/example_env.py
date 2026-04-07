@@ -40,7 +40,6 @@ class ExampleEnv(gym.Env):
                             iter_idx,
                             encoder=None,
                             reward_decoder=None,
-                            state_decoder=None,
                             image_folder=None,
                             **kwargs):
         """

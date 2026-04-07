@@ -62,8 +62,6 @@ def get_args(rest_args):
                         help='how many trajectories (!) to keep in VAE buffer')
     parser.add_argument('--precollect_len', type=int, default=5000,
                         help='how many frames to pre-collect before training begins (useful to fill VAE buffer)')
-    parser.add_argument('--vae_buffer_add_thresh', type=float, default=1,
-                        help='probability of adding a new trajectory to buffer')
     parser.add_argument('--vae_batch_num_trajs', type=int, default=25,
                         help='how many trajectories to use for VAE update')
     parser.add_argument('--tbptt_stepsize', type=int, default=None,
@@ -90,20 +88,12 @@ def get_args(rest_args):
 
     # - decoder: rewards
     parser.add_argument('--decode_reward', type=boolean_argument, default=True, help='use reward decoder')
-    parser.add_argument('--input_prev_state', type=boolean_argument, default=False, help='use prev state for rew pred')
-    parser.add_argument('--input_action', type=boolean_argument, default=False, help='use prev action for rew pred')
     parser.add_argument('--reward_decoder_layers', nargs='+', type=int, default=[32, 32])
-    parser.add_argument('--multihead_for_reward', type=boolean_argument, default=True,
-                        help='one head per reward pred (i.e. per state)')
     parser.add_argument('--rew_pred_type', type=str, default='bernoulli',
                         help='choose: '
                              'bernoulli (predict p(r=1|s))'
                              'categorical (predict p(r=1|s) but use softmax instead of sigmoid)'
                              'deterministic (treat as regression problem)')
-
-    # - decoder: state transitions
-    parser.add_argument('--decode_state', type=boolean_argument, default=False, help='use state decoder')
-    parser.add_argument('--state_decoder_layers', nargs='+', type=int, default=[32, 32])
 
     # --- OTHERS ---
 

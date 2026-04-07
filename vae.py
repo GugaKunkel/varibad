@@ -6,7 +6,7 @@ import torch
 from torch.nn import functional as F
 import torch.nn as nn
 
-from models.decoder import StateTransitionDecoder, RewardDecoder
+from models.decoder import RewardDecoder
 from models.encoder import RNNEncoder
 from utils.storage_vae import RolloutStorageVAE
 
@@ -41,8 +41,8 @@ class VaribadVAE:
         ).to(device)
 
 
-        # initialise the decoders (returns None for unused decoders)
-        self.state_decoder, self.reward_decoder = self.initialise_decoder()
+        # initialise the reward decoder (returns None if unused)
+        self.reward_decoder = self.initialise_decoder()
 
         # initialise rollout storage for the VAE update
         # (this differs from the data that the on-policy RL algorithm uses)
@@ -51,34 +51,18 @@ class VaribadVAE:
                                                  zero_pad=True,
                                                  max_num_rollouts=self.args.size_vae_buffer,
                                                  state_dim=self.args.state_dim,
-                                                 action_dim=self.args.action_dim,
-                                                 vae_buffer_add_thresh=self.args.vae_buffer_add_thresh
+                                                 action_dim=self.args.action_dim
                                                  )
 
         # initalise optimiser for the encoder and decoders
         decoder_params = []
         if self.args.decode_reward:
             decoder_params.extend(self.reward_decoder.parameters())
-        if self.args.decode_state:
-            decoder_params.extend(self.state_decoder.parameters())
         self.optimiser_vae = torch.optim.Adam([*self.encoder.parameters(), *decoder_params], lr=self.args.lr_vae)
 
     def initialise_decoder(self):
-        """ Initialises and returns the (state/reward/task) decoder as specified in self.args """
+        """Initialises and returns the reward decoder as specified in self.args."""
         latent_dim = self.args.latent_dim
-
-        # initialise state decoder for VAE
-        if self.args.decode_state:
-            state_decoder = StateTransitionDecoder(
-                layers=self.args.state_decoder_layers,
-                latent_dim=latent_dim,
-                action_dim=self.args.action_dim,
-                action_embed_dim=self.args.action_embedding_size,
-                state_dim=self.args.state_dim,
-                state_embed_dim=self.args.state_embedding_size
-            ).to(device)
-        else:
-            state_decoder = None
 
         # initialise reward decoder for VAE
         if self.args.decode_reward:
@@ -89,41 +73,28 @@ class VaribadVAE:
             ).to(device)
         else:
             reward_decoder = None
-        return state_decoder, reward_decoder
+        return reward_decoder
 
-    def compute_state_reconstruction_loss(self, latent, prev_obs, next_obs, action, return_predictions=False):
-        """ Compute state reconstruction loss.
-        (No reduction of loss along batch dimension is done here; sum/avg has to be done outside) """
-
-        state_pred = self.state_decoder(latent, prev_obs, action)
-        loss_state = (state_pred - next_obs).pow(2).mean(dim=-1)
-        if return_predictions:
-            return loss_state, state_pred
-        else:
-            return loss_state
-
-    def compute_rew_reconstruction_loss(self, latent, prev_obs, next_obs, action, reward, return_predictions=False):
+    def compute_rew_reconstruction_loss(self, latent, next_obs, reward, return_predictions=False):
         """ Compute reward reconstruction loss.
         (No reduction of loss along batch dimension is done here; sum/avg has to be done outside) """
+        rew_pred = self.reward_decoder(latent)
+        if self.args.rew_pred_type == 'categorical':
+            rew_pred = F.softmax(rew_pred, dim=-1)
+        elif self.args.rew_pred_type == 'bernoulli':
+            rew_pred = torch.sigmoid(rew_pred)
 
-        if self.args.multihead_for_reward:
-            rew_pred = self.reward_decoder(latent)
-            if self.args.rew_pred_type == 'categorical':
-                rew_pred = F.softmax(rew_pred, dim=-1)
-            elif self.args.rew_pred_type == 'bernoulli':
-                rew_pred = torch.sigmoid(rew_pred)
-
-            env = gym.make(self.args.env_name)
-            env_task = env.unwrapped if hasattr(env, 'unwrapped') else env
-            state_indices = env_task.task_to_id(next_obs).to(device)
-            if state_indices.dim() < rew_pred.dim():
-                state_indices = state_indices.unsqueeze(-1)
-            rew_pred = rew_pred.gather(dim=-1, index=state_indices)
-            rew_target = (reward == 1).float()
-            if self.args.rew_pred_type in ['categorical', 'bernoulli']:
-                loss_rew = F.binary_cross_entropy(rew_pred, rew_target, reduction='none').mean(dim=-1)
-            else:
-                raise NotImplementedError
+        env = gym.make(self.args.env_name)
+        env_task = env.unwrapped if hasattr(env, 'unwrapped') else env
+        state_indices = env_task.task_to_id(next_obs).to(device)
+        if state_indices.dim() < rew_pred.dim():
+            state_indices = state_indices.unsqueeze(-1)
+        rew_pred = rew_pred.gather(dim=-1, index=state_indices)
+        rew_target = (reward == 1).float()
+        if self.args.rew_pred_type in ['categorical', 'bernoulli']:
+            loss_rew = F.binary_cross_entropy(rew_pred, rew_target, reduction='none').mean(dim=-1)
+        else:
+            raise NotImplementedError
 
         if return_predictions:
             return loss_rew, rew_pred
@@ -235,7 +206,7 @@ class VaribadVAE:
         if self.args.decode_reward:
             # compute reconstruction loss for this trajectory (for each timestep that was encoded, decode everything and sum it up)
             # shape: [num_elbo_terms] x [num_reconstruction_terms] x [num_trajectories]
-            rew_reconstruction_loss = self.compute_rew_reconstruction_loss(dec_embedding, dec_prev_obs, dec_next_obs, dec_actions, dec_rewards)
+            rew_reconstruction_loss = self.compute_rew_reconstruction_loss(dec_embedding, dec_next_obs, dec_rewards)
             # avg/sum across individual ELBO terms
             if self.args.vae_avg_elbo_terms:
                 rew_reconstruction_loss = rew_reconstruction_loss.mean(dim=0)
@@ -251,23 +222,6 @@ class VaribadVAE:
         else:
             rew_reconstruction_loss = 0
 
-        if self.args.decode_state:
-            state_reconstruction_loss = self.compute_state_reconstruction_loss(dec_embedding, dec_prev_obs, dec_next_obs, dec_actions)
-            # avg/sum across individual ELBO terms
-            if self.args.vae_avg_elbo_terms:
-                state_reconstruction_loss = state_reconstruction_loss.mean(dim=0)
-            else:
-                state_reconstruction_loss = state_reconstruction_loss.sum(dim=0)
-            # avg/sum across individual reconstruction terms
-            if self.args.vae_avg_reconstruction_terms:
-                state_reconstruction_loss = state_reconstruction_loss.mean(dim=0)
-            else:
-                state_reconstruction_loss = state_reconstruction_loss.sum(dim=0)
-            # average across tasks
-            state_reconstruction_loss = state_reconstruction_loss.mean()
-        else:
-            state_reconstruction_loss = 0
-
         # compute the KL term for each ELBO term of the current trajectory
         # shape: [num_elbo_terms] x [num_trajectories]
         kl_loss = self.compute_kl_loss(latent_mean, latent_logvar, elbo_indices)
@@ -279,7 +233,7 @@ class VaribadVAE:
         # average across tasks
         kl_loss = kl_loss.sum(dim=0).mean()
 
-        return rew_reconstruction_loss, state_reconstruction_loss, kl_loss
+        return rew_reconstruction_loss, kl_loss
 
     def compute_vae_loss(self, update=False, pretrain_index=None):
         """ Returns the VAE loss """
@@ -299,18 +253,18 @@ class VaribadVAE:
                                                         return_prior=True,
                                                         detach_every=self.args.tbptt_stepsize if hasattr(self.args, 'tbptt_stepsize') else None,
                                                         )
-        rew_reconstruction_loss, state_reconstruction_loss, kl_loss = self.compute_loss(latent_mean, latent_logvar, vae_prev_obs, vae_next_obs, vae_actions,vae_rewards, trajectory_lens)
+        rew_reconstruction_loss, kl_loss = self.compute_loss(
+            latent_mean, latent_logvar, vae_prev_obs, vae_next_obs, vae_actions, vae_rewards, trajectory_lens
+        )
 
-        # VAE loss = KL loss + reward reconstruction + state transition reconstruction
+        # VAE loss = KL loss + reward reconstruction
         # take average (this is the expectation over p(M))
-        loss = (rew_reconstruction_loss + state_reconstruction_loss + self.args.kl_weight * kl_loss).mean()
+        loss = (rew_reconstruction_loss + self.args.kl_weight * kl_loss).mean()
 
         # make sure we can compute gradients
         assert kl_loss.requires_grad
         if self.args.decode_reward:
             assert rew_reconstruction_loss.requires_grad
-        if self.args.decode_state:
-            assert state_reconstruction_loss.requires_grad
 
         # overall loss
         elbo_loss = loss.mean()
@@ -324,15 +278,13 @@ class VaribadVAE:
             if self.args.decoder_max_grad_norm is not None:
                 if self.args.decode_reward:
                     nn.utils.clip_grad_norm_(self.reward_decoder.parameters(), self.args.decoder_max_grad_norm)
-                if self.args.decode_state:
-                    nn.utils.clip_grad_norm_(self.state_decoder.parameters(), self.args.decoder_max_grad_norm)
             # update
             self.optimiser_vae.step()
 
-        self.log(elbo_loss, rew_reconstruction_loss, state_reconstruction_loss, kl_loss, pretrain_index)
+        self.log(elbo_loss, rew_reconstruction_loss, kl_loss, pretrain_index)
         return elbo_loss
 
-    def log(self, elbo_loss, rew_reconstruction_loss, state_reconstruction_loss, kl_loss,
+    def log(self, elbo_loss, rew_reconstruction_loss, kl_loss,
             pretrain_index=None):
 
         if pretrain_index is None:
@@ -344,8 +296,6 @@ class VaribadVAE:
 
             if self.args.decode_reward:
                 self.logger.add('vae_losses/reward_reconstr_err', rew_reconstruction_loss.mean(), curr_iter_idx)
-            if self.args.decode_state:
-                self.logger.add('vae_losses/state_reconstr_err', state_reconstruction_loss.mean(), curr_iter_idx)
 
             self.logger.add('vae_losses/kl', kl_loss.mean(), curr_iter_idx)
             self.logger.add('vae_losses/sum', elbo_loss, curr_iter_idx)

@@ -109,9 +109,7 @@ def visualise_behaviour(args,
                         tasks,
                         encoder=None,
                         reward_decoder=None,
-                        state_decoder=None,
                         compute_rew_reconstruction_loss=None,
-                        compute_state_reconstruction_loss=None,
                         compute_kl_loss=None,
                         ):
     # initialise environment
@@ -138,7 +136,6 @@ def visualise_behaviour(args,
                                                  iter_idx=iter_idx,
                                                  encoder=encoder,
                                                  reward_decoder=reward_decoder,
-                                                 state_decoder=state_decoder,
                                                  image_folder=image_folder,
                                                  )
     else:
@@ -162,9 +159,7 @@ def visualise_behaviour(args,
                       image_folder=image_folder,
                       iter_idx=iter_idx,
                       reward_decoder=reward_decoder,
-                      state_decoder=state_decoder,
                       compute_rew_reconstruction_loss=compute_rew_reconstruction_loss,
-                      compute_state_reconstruction_loss=compute_state_reconstruction_loss,
                       compute_kl_loss=compute_kl_loss,
                       )
 
@@ -218,8 +213,7 @@ def get_test_rollout(args, env, policy, encoder=None):
 
             episode_prev_obs[episode_idx].append(state.clone())
 
-            latent = utl.get_latent_for_policy(args,
-                                               latent_sample=curr_latent_sample,
+            latent = utl.get_latent_for_policy(latent_sample=curr_latent_sample,
                                                latent_mean=curr_latent_mean,
                                                latent_logvar=curr_latent_logvar)
             _, action = policy.act(state=state.view(-1), latent=latent, belief=belief, deterministic=True)
@@ -326,9 +320,7 @@ def plot_vae_loss(args,
                   image_folder,
                   iter_idx,
                   reward_decoder,
-                  state_decoder,
                   compute_rew_reconstruction_loss,
-                  compute_state_reconstruction_loss,
                   compute_kl_loss
                   ):
     num_rollouts = len(latent_means)
@@ -353,10 +345,6 @@ def plot_vae_loss(args,
     rew_reconstr_std = []
     rew_pred_std = []
 
-    state_reconstr_mean = []
-    state_reconstr_std = []
-    state_pred_std = []
-
     # compute the sum of ELBO_t's by looping through (trajectory length + prior)
     for i in range(len(latent_means)):
 
@@ -373,8 +361,7 @@ def plot_vae_loss(args,
         latent_samples = latent_samples.unsqueeze(1).expand(num_samples, len_traj, latent_samples.shape[-1])
 
         if reward_decoder is not None:
-            loss_rew, rew_pred = compute_rew_reconstruction_loss(latent_samples, prev_obs, next_obs,
-                                                                 actions, rewards, return_predictions=True)
+            loss_rew, rew_pred = compute_rew_reconstruction_loss(latent_samples, next_obs, rewards, return_predictions=True)
             # sum along length of trajectory
             loss_rew = loss_rew.sum(dim=1)
             rew_pred = rew_pred.sum(dim=1)
@@ -383,18 +370,6 @@ def plot_vae_loss(args,
             rew_reconstr_mean.append(loss_rew.mean())
             rew_reconstr_std.append(loss_rew.std())
             rew_pred_std.append(rew_pred.std())
-
-        if state_decoder is not None:
-            loss_state, state_pred = compute_state_reconstruction_loss(latent_samples, prev_obs, next_obs,
-                                                                       actions, return_predictions=True)
-            # sum along length of trajectory
-            loss_state = loss_state.sum(dim=1)
-            state_pred = state_pred.sum(dim=1)
-
-            # average/std across the different samples
-            state_reconstr_mean.append(loss_state.mean())
-            state_reconstr_std.append(loss_state.std())
-            state_pred_std.append(state_pred.std())
 
     # kl term
     vae_kl_term = compute_kl_loss(latent_means, latent_logvars, None)
@@ -456,48 +431,6 @@ def plot_vae_loss(args,
         plt.tight_layout()
         if image_folder is not None:
             plt.savefig('{}/{}_rew_reconstruction'.format(image_folder, iter_idx))
-            plt.close()
-        else:
-            plt.show()
-
-    # --- plot state reconstruction ---
-
-    if state_decoder is not None:
-
-        plt.figure(figsize=(12, 5))
-
-        state_reconstr_mean = torch.stack(state_reconstr_mean).detach().cpu().numpy()
-        state_reconstr_std = torch.stack(state_reconstr_std).detach().cpu().numpy()
-        state_pred_std = torch.stack(state_pred_std).detach().cpu().numpy()
-
-        plt.subplot(1, 2, 1)
-        p = plt.plot(x, state_reconstr_mean, 'b-')
-        plt.gca().fill_between(x,
-                               state_reconstr_mean - state_reconstr_std,
-                               state_reconstr_mean + state_reconstr_std,
-                               facecolor=p[0].get_color(), alpha=0.1)
-        for tj in np.cumsum([0, *[num_episode_steps for _ in range(num_rollouts)]]):
-            min_y = (state_reconstr_mean - state_reconstr_std).min()
-            max_y = (state_reconstr_mean + state_reconstr_std).max()
-            span = max_y - min_y
-            plt.plot([tj + 0.5, tj + 0.5],
-                     [min_y - span * 0.05, max_y + span * 0.05],
-                     'k--', alpha=0.5)
-        plt.xlabel('env steps', fontsize=15)
-        plt.ylabel('state reconstruction error', fontsize=15)
-
-        plt.subplot(1, 2, 2)
-        plt.plot(x, state_pred_std, 'b-')
-        for tj in np.cumsum([0, *[num_episode_steps for _ in range(num_rollouts)]]):
-            span = state_pred_std.max() - state_pred_std.min()
-            plt.plot([tj + 0.5, tj + 0.5],
-                     [state_pred_std.min() - span * 0.05, state_pred_std.max() + span * 0.05],
-                     'k--', alpha=0.5)
-        plt.xlabel('env steps', fontsize=15)
-        plt.ylabel('std of state reconstruction', fontsize=15)
-        plt.tight_layout()
-        if image_folder is not None:
-            plt.savefig('{}/{}_state_reconstruction'.format(image_folder, iter_idx))
             plt.close()
         else:
             plt.show()

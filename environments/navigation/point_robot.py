@@ -185,8 +185,7 @@ class PointEnv(Env):
                 else:
                     episode_prev_obs[episode_idx].append(state.clone())
                 # act
-                latent = utl.get_latent_for_policy(args,
-                                                   latent_sample=curr_latent_sample,
+                latent = utl.get_latent_for_policy(latent_sample=curr_latent_sample,
                                                    latent_mean=curr_latent_mean,
                                                    latent_logvar=curr_latent_logvar)
                 _, action = policy.act(state=state.view(-1), latent=latent, belief=belief,

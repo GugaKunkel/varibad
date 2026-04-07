@@ -5,7 +5,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 class RolloutStorageVAE(object):
-    def __init__(self, num_processes, max_trajectory_len, zero_pad, max_num_rollouts, state_dim, action_dim, vae_buffer_add_thresh):
+    def __init__(self, num_processes, max_trajectory_len, zero_pad, max_num_rollouts, state_dim, action_dim):
         """
         Store everything that is needed for the VAE update
         :param num_processes:
@@ -14,7 +14,6 @@ class RolloutStorageVAE(object):
         self.obs_dim = state_dim
         self.action_dim = action_dim
 
-        self.vae_buffer_add_thresh = vae_buffer_add_thresh  # prob of adding new trajectories
         self.max_buffer_size = max_num_rollouts  # maximum buffer len (number of trajectories)
         self.insert_idx = 0  # at which index we're currently inserting new data
         self.buffer_len = 0  # how much of the buffer has been filled
@@ -66,24 +65,23 @@ class RolloutStorageVAE(object):
 
             # add to permanent (up to max_buffer_len) buffer
             if self.max_buffer_size > 0:
-                if self.vae_buffer_add_thresh >= np.random.uniform(0, 1):
-                    # check where to insert data
-                    if self.insert_idx + self.num_processes > self.max_buffer_size:
-                        # keep track of how much we filled the buffer (for sampling from it)
-                        self.buffer_len = self.insert_idx
-                        # this will keep some entries at the end of the buffer without overwriting them,
-                        # but the buffer is large enough to make this negligible
-                        self.insert_idx = 0
-                    else:
-                        self.buffer_len = max(self.buffer_len, self.insert_idx)
-                    # add; note: num trajectories are along dim=1,
-                    # trajectory length along dim=0, to match pytorch RNN interface
-                    self.prev_state[:, self.insert_idx:self.insert_idx + self.num_processes] = self.running_prev_state
-                    self.next_state[:, self.insert_idx:self.insert_idx + self.num_processes] = self.running_next_state
-                    self.actions[:, self.insert_idx:self.insert_idx+self.num_processes] = self.running_actions
-                    self.rewards[:, self.insert_idx:self.insert_idx+self.num_processes] = self.running_rewards
-                    self.trajectory_lens[self.insert_idx:self.insert_idx+self.num_processes] = self.curr_timestep.clone()
-                    self.insert_idx += self.num_processes
+                # check where to insert data
+                if self.insert_idx + self.num_processes > self.max_buffer_size:
+                    # keep track of how much we filled the buffer (for sampling from it)
+                    self.buffer_len = self.insert_idx
+                    # this will keep some entries at the end of the buffer without overwriting them,
+                    # but the buffer is large enough to make this negligible
+                    self.insert_idx = 0
+                else:
+                    self.buffer_len = max(self.buffer_len, self.insert_idx)
+                # add; note: num trajectories are along dim=1,
+                # trajectory length along dim=0, to match pytorch RNN interface
+                self.prev_state[:, self.insert_idx:self.insert_idx + self.num_processes] = self.running_prev_state
+                self.next_state[:, self.insert_idx:self.insert_idx + self.num_processes] = self.running_next_state
+                self.actions[:, self.insert_idx:self.insert_idx+self.num_processes] = self.running_actions
+                self.rewards[:, self.insert_idx:self.insert_idx+self.num_processes] = self.running_rewards
+                self.trajectory_lens[self.insert_idx:self.insert_idx+self.num_processes] = self.curr_timestep.clone()
+                self.insert_idx += self.num_processes
 
             # empty running buffer
             self.running_prev_state *= 0
@@ -111,24 +109,23 @@ class RolloutStorageVAE(object):
 
                         # add to permanent (up to max_buffer_len) buffer
                         if self.max_buffer_size > 0:
-                            if self.vae_buffer_add_thresh >= np.random.uniform(0, 1):
-                                # check where to insert data
-                                if self.insert_idx + 1 > self.max_buffer_size:
-                                    # keep track of how much we filled the buffer (for sampling from it)
-                                    self.buffer_len = self.insert_idx
-                                    # this will keep some entries at the end of the buffer without overwriting them,
-                                    # but the buffer is large enough to make this negligible
-                                    self.insert_idx = 0
-                                else:
-                                    self.buffer_len = max(self.buffer_len, self.insert_idx)
-                                # add; note: num trajectories are along dim=1,
-                                # trajectory length along dim=0, to match pytorch RNN interface
-                                self.prev_state[:, self.insert_idx] = self.running_prev_state[:, i].to('cpu')
-                                self.next_state[:, self.insert_idx] = self.running_next_state[:, i].to('cpu')
-                                self.actions[:, self.insert_idx] = self.running_actions[:, i].to('cpu')
-                                self.rewards[:, self.insert_idx] = self.running_rewards[:, i].to('cpu')
-                                self.trajectory_lens[self.insert_idx] = self.curr_timestep[i].clone()
-                                self.insert_idx += 1
+                            # check where to insert data
+                            if self.insert_idx + 1 > self.max_buffer_size:
+                                # keep track of how much we filled the buffer (for sampling from it)
+                                self.buffer_len = self.insert_idx
+                                # this will keep some entries at the end of the buffer without overwriting them,
+                                # but the buffer is large enough to make this negligible
+                                self.insert_idx = 0
+                            else:
+                                self.buffer_len = max(self.buffer_len, self.insert_idx)
+                            # add; note: num trajectories are along dim=1,
+                            # trajectory length along dim=0, to match pytorch RNN interface
+                            self.prev_state[:, self.insert_idx] = self.running_prev_state[:, i].to('cpu')
+                            self.next_state[:, self.insert_idx] = self.running_next_state[:, i].to('cpu')
+                            self.actions[:, self.insert_idx] = self.running_actions[:, i].to('cpu')
+                            self.rewards[:, self.insert_idx] = self.running_rewards[:, i].to('cpu')
+                            self.trajectory_lens[self.insert_idx] = self.curr_timestep[i].clone()
+                            self.insert_idx += 1
 
                         # empty running buffer
                         self.running_prev_state[:, i] *= 0

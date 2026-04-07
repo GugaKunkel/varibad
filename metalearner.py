@@ -308,9 +308,7 @@ class MetaLearner:
                                          ret_rms=ret_rms,
                                          encoder=self.vae.encoder,
                                          reward_decoder=self.vae.reward_decoder,
-                                         state_decoder=self.vae.state_decoder,
                                          compute_rew_reconstruction_loss=self.vae.compute_rew_reconstruction_loss,
-                                         compute_state_reconstruction_loss=self.vae.compute_state_reconstruction_loss,
                                          compute_kl_loss=self.vae.compute_kl_loss,
                                          tasks=None,
                                          )
@@ -358,8 +356,6 @@ class MetaLearner:
 
                 torch.save(self.policy.actor_critic, os.path.join(save_path, f"policy{idx_label}.pt"))
                 torch.save(self.vae.encoder, os.path.join(save_path, f"encoder{idx_label}.pt"))
-                if self.vae.state_decoder is not None:
-                    torch.save(self.vae.state_decoder, os.path.join(save_path, f"state_decoder{idx_label}.pt"))
                 if self.vae.reward_decoder is not None:
                     torch.save(self.vae.reward_decoder, os.path.join(save_path, f"reward_decoder{idx_label}.pt"))
 
@@ -396,7 +392,6 @@ class MetaLearner:
                 [self.policy.actor_critic, 'policy'],
                 [self.vae.encoder, 'encoder'],
                 [self.vae.reward_decoder, 'reward_decoder'],
-                [self.vae.state_decoder, 'state_transition_decoder'],
             ]:
                 if model is not None:
                     param_list = list(model.parameters())
