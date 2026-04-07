@@ -87,7 +87,6 @@ def get_args(rest_args):
     parser.add_argument('--latent_dim', type=int, default=5, help='dimensionality of latent space')
 
     # - decoder: rewards
-    parser.add_argument('--decode_reward', type=boolean_argument, default=True, help='use reward decoder')
     parser.add_argument('--reward_decoder_layers', nargs='+', type=int, default=[32, 32])
     parser.add_argument('--rew_pred_type', type=str, default='bernoulli',
                         help='choose: '
@@ -107,7 +106,4 @@ def get_args(rest_args):
 
     # general settings
     parser.add_argument('--seed',  nargs='+', type=int, default=[73])
-    parser.add_argument('--deterministic_execution', type=boolean_argument, default=False,
-                        help='Make code fully deterministic. Expects 1 process and uses deterministic CUDNN')
-
     return parser.parse_args(rest_args)

@@ -67,7 +67,7 @@ and some visualisations will be printed every now and then.
 
 Some comments on the flags in the config files:
 - You can choose what type of decoder you by setting the respective flags to true: 
-`--decode_reward True`.
+Reward decoding is always enabled in this simplified codebase.
 - The size of the latent dimension can be changed using `--latent_dim`.
 - In our experience, the performance of PPO depends a lot on 
 the number of minibatches (`--ppo_num_minibatch`),

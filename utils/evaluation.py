@@ -360,16 +360,15 @@ def plot_vae_loss(args,
 
         latent_samples = latent_samples.unsqueeze(1).expand(num_samples, len_traj, latent_samples.shape[-1])
 
-        if reward_decoder is not None:
-            loss_rew, rew_pred = compute_rew_reconstruction_loss(latent_samples, next_obs, rewards, return_predictions=True)
-            # sum along length of trajectory
-            loss_rew = loss_rew.sum(dim=1)
-            rew_pred = rew_pred.sum(dim=1)
+        loss_rew, rew_pred = compute_rew_reconstruction_loss(latent_samples, next_obs, rewards, return_predictions=True)
+        # sum along length of trajectory
+        loss_rew = loss_rew.sum(dim=1)
+        rew_pred = rew_pred.sum(dim=1)
 
-            # average/std across the different samples
-            rew_reconstr_mean.append(loss_rew.mean())
-            rew_reconstr_std.append(loss_rew.std())
-            rew_pred_std.append(rew_pred.std())
+        # average/std across the different samples
+        rew_reconstr_mean.append(loss_rew.mean())
+        rew_reconstr_std.append(loss_rew.std())
+        rew_pred_std.append(rew_pred.std())
 
     # kl term
     vae_kl_term = compute_kl_loss(latent_means, latent_logvars, None)
@@ -396,41 +395,39 @@ def plot_vae_loss(args,
 
     # --- plot rew reconstruction ---
 
-    if reward_decoder is not None:
+    rew_reconstr_mean = torch.stack(rew_reconstr_mean).detach().cpu().numpy()
+    rew_reconstr_std = torch.stack(rew_reconstr_std).detach().cpu().numpy()
+    rew_pred_std = torch.stack(rew_pred_std).detach().cpu().numpy()
 
-        rew_reconstr_mean = torch.stack(rew_reconstr_mean).detach().cpu().numpy()
-        rew_reconstr_std = torch.stack(rew_reconstr_std).detach().cpu().numpy()
-        rew_pred_std = torch.stack(rew_pred_std).detach().cpu().numpy()
+    plt.figure(figsize=(12, 5))
+    plt.subplot(1, 2, 1)
+    p = plt.plot(x, rew_reconstr_mean, 'b-')
+    plt.gca().fill_between(x,
+                           rew_reconstr_mean - rew_reconstr_std,
+                           rew_reconstr_mean + rew_reconstr_std,
+                           facecolor=p[0].get_color(), alpha=0.1)
+    for tj in np.cumsum([0, *[num_episode_steps for _ in range(num_rollouts)]]):
+        min_y = (rew_reconstr_mean - rew_reconstr_std).min()
+        max_y = (rew_reconstr_mean + rew_reconstr_std).max()
+        span = max_y - min_y
+        plt.plot([tj + 0.5, tj + 0.5],
+                 [min_y - span * 0.05, max_y + span * 0.05],
+                 'k--', alpha=0.5)
+    plt.xlabel('env steps', fontsize=15)
+    plt.ylabel('reward reconstruction error', fontsize=15)
 
-        plt.figure(figsize=(12, 5))
-        plt.subplot(1, 2, 1)
-        p = plt.plot(x, rew_reconstr_mean, 'b-')
-        plt.gca().fill_between(x,
-                               rew_reconstr_mean - rew_reconstr_std,
-                               rew_reconstr_mean + rew_reconstr_std,
-                               facecolor=p[0].get_color(), alpha=0.1)
-        for tj in np.cumsum([0, *[num_episode_steps for _ in range(num_rollouts)]]):
-            min_y = (rew_reconstr_mean - rew_reconstr_std).min()
-            max_y = (rew_reconstr_mean + rew_reconstr_std).max()
-            span = max_y - min_y
-            plt.plot([tj + 0.5, tj + 0.5],
-                     [min_y - span * 0.05, max_y + span * 0.05],
-                     'k--', alpha=0.5)
-        plt.xlabel('env steps', fontsize=15)
-        plt.ylabel('reward reconstruction error', fontsize=15)
-
-        plt.subplot(1, 2, 2)
-        plt.plot(x, rew_pred_std, 'b-')
-        for tj in np.cumsum([0, *[num_episode_steps for _ in range(num_rollouts)]]):
-            span = rew_pred_std.max() - rew_pred_std.min()
-            plt.plot([tj + 0.5, tj + 0.5],
-                     [rew_pred_std.min() - span * 0.05, rew_pred_std.max() + span * 0.05],
-                     'k--', alpha=0.5)
-        plt.xlabel('env steps', fontsize=15)
-        plt.ylabel('std of rew reconstruction', fontsize=15)
-        plt.tight_layout()
-        if image_folder is not None:
-            plt.savefig('{}/{}_rew_reconstruction'.format(image_folder, iter_idx))
-            plt.close()
-        else:
-            plt.show()
+    plt.subplot(1, 2, 2)
+    plt.plot(x, rew_pred_std, 'b-')
+    for tj in np.cumsum([0, *[num_episode_steps for _ in range(num_rollouts)]]):
+        span = rew_pred_std.max() - rew_pred_std.min()
+        plt.plot([tj + 0.5, tj + 0.5],
+                 [rew_pred_std.min() - span * 0.05, rew_pred_std.max() + span * 0.05],
+                 'k--', alpha=0.5)
+    plt.xlabel('env steps', fontsize=15)
+    plt.ylabel('std of rew reconstruction', fontsize=15)
+    plt.tight_layout()
+    if image_folder is not None:
+        plt.savefig('{}/{}_rew_reconstruction'.format(image_folder, iter_idx))
+        plt.close()
+    else:
+        plt.show()

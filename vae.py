@@ -41,8 +41,12 @@ class VaribadVAE:
         ).to(device)
 
 
-        # initialise the reward decoder (returns None if unused)
-        self.reward_decoder = self.initialise_decoder()
+        # initialise reward decoder
+        self.reward_decoder = RewardDecoder(
+            layers=self.args.reward_decoder_layers,
+            latent_dim=self.args.latent_dim,
+            num_states=self.args.num_states,
+        ).to(device)
 
         # initialise rollout storage for the VAE update
         # (this differs from the data that the on-policy RL algorithm uses)
@@ -55,25 +59,8 @@ class VaribadVAE:
                                                  )
 
         # initalise optimiser for the encoder and decoders
-        decoder_params = []
-        if self.args.decode_reward:
-            decoder_params.extend(self.reward_decoder.parameters())
+        decoder_params = list(self.reward_decoder.parameters())
         self.optimiser_vae = torch.optim.Adam([*self.encoder.parameters(), *decoder_params], lr=self.args.lr_vae)
-
-    def initialise_decoder(self):
-        """Initialises and returns the reward decoder as specified in self.args."""
-        latent_dim = self.args.latent_dim
-
-        # initialise reward decoder for VAE
-        if self.args.decode_reward:
-            reward_decoder = RewardDecoder(
-                layers=self.args.reward_decoder_layers,
-                latent_dim=latent_dim,
-                num_states=self.args.num_states,
-            ).to(device)
-        else:
-            reward_decoder = None
-        return reward_decoder
 
     def compute_rew_reconstruction_loss(self, latent, next_obs, reward, return_predictions=False):
         """ Compute reward reconstruction loss.
@@ -203,24 +190,21 @@ class VaribadVAE:
         # shape will be: [num tasks in batch] x [num elbos] x [len trajectory (reconstrution loss)] x [dimension]
         dec_embedding = latent_samples.unsqueeze(0).expand((num_decodes, *latent_samples.shape)).transpose(1, 0)
 
-        if self.args.decode_reward:
-            # compute reconstruction loss for this trajectory (for each timestep that was encoded, decode everything and sum it up)
-            # shape: [num_elbo_terms] x [num_reconstruction_terms] x [num_trajectories]
-            rew_reconstruction_loss = self.compute_rew_reconstruction_loss(dec_embedding, dec_next_obs, dec_rewards)
-            # avg/sum across individual ELBO terms
-            if self.args.vae_avg_elbo_terms:
-                rew_reconstruction_loss = rew_reconstruction_loss.mean(dim=0)
-            else:
-                rew_reconstruction_loss = rew_reconstruction_loss.sum(dim=0)
-            # avg/sum across individual reconstruction terms
-            if self.args.vae_avg_reconstruction_terms:
-                rew_reconstruction_loss = rew_reconstruction_loss.mean(dim=0)
-            else:
-                rew_reconstruction_loss = rew_reconstruction_loss.sum(dim=0)
-            # average across tasks
-            rew_reconstruction_loss = rew_reconstruction_loss.mean()
+        # compute reconstruction loss for this trajectory (for each timestep that was encoded, decode everything and sum it up)
+        # shape: [num_elbo_terms] x [num_reconstruction_terms] x [num_trajectories]
+        rew_reconstruction_loss = self.compute_rew_reconstruction_loss(dec_embedding, dec_next_obs, dec_rewards)
+        # avg/sum across individual ELBO terms
+        if self.args.vae_avg_elbo_terms:
+            rew_reconstruction_loss = rew_reconstruction_loss.mean(dim=0)
         else:
-            rew_reconstruction_loss = 0
+            rew_reconstruction_loss = rew_reconstruction_loss.sum(dim=0)
+        # avg/sum across individual reconstruction terms
+        if self.args.vae_avg_reconstruction_terms:
+            rew_reconstruction_loss = rew_reconstruction_loss.mean(dim=0)
+        else:
+            rew_reconstruction_loss = rew_reconstruction_loss.sum(dim=0)
+        # average across tasks
+        rew_reconstruction_loss = rew_reconstruction_loss.mean()
 
         # compute the KL term for each ELBO term of the current trajectory
         # shape: [num_elbo_terms] x [num_trajectories]
@@ -263,8 +247,7 @@ class VaribadVAE:
 
         # make sure we can compute gradients
         assert kl_loss.requires_grad
-        if self.args.decode_reward:
-            assert rew_reconstruction_loss.requires_grad
+        assert rew_reconstruction_loss.requires_grad
 
         # overall loss
         elbo_loss = loss.mean()
@@ -276,8 +259,7 @@ class VaribadVAE:
             if self.args.encoder_max_grad_norm is not None:
                 nn.utils.clip_grad_norm_(self.encoder.parameters(), self.args.encoder_max_grad_norm)
             if self.args.decoder_max_grad_norm is not None:
-                if self.args.decode_reward:
-                    nn.utils.clip_grad_norm_(self.reward_decoder.parameters(), self.args.decoder_max_grad_norm)
+                nn.utils.clip_grad_norm_(self.reward_decoder.parameters(), self.args.decoder_max_grad_norm)
             # update
             self.optimiser_vae.step()
 
@@ -293,9 +275,6 @@ class VaribadVAE:
             curr_iter_idx = - self.args.pretrain_len * self.args.num_vae_updates_per_pretrain + pretrain_index
 
         if curr_iter_idx % self.args.log_interval == 0:
-
-            if self.args.decode_reward:
-                self.logger.add('vae_losses/reward_reconstr_err', rew_reconstruction_loss.mean(), curr_iter_idx)
-
+            self.logger.add('vae_losses/reward_reconstr_err', rew_reconstruction_loss.mean(), curr_iter_idx)
             self.logger.add('vae_losses/kl', kl_loss.mean(), curr_iter_idx)
             self.logger.add('vae_losses/sum', elbo_loss, curr_iter_idx)

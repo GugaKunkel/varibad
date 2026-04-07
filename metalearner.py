@@ -356,8 +356,7 @@ class MetaLearner:
 
                 torch.save(self.policy.actor_critic, os.path.join(save_path, f"policy{idx_label}.pt"))
                 torch.save(self.vae.encoder, os.path.join(save_path, f"encoder{idx_label}.pt"))
-                if self.vae.reward_decoder is not None:
-                    torch.save(self.vae.reward_decoder, os.path.join(save_path, f"reward_decoder{idx_label}.pt"))
+                torch.save(self.vae.reward_decoder, os.path.join(save_path, f"reward_decoder{idx_label}.pt"))
 
                 # save normalisation params of envs
                 rew_rms = self.envs.venv.ret_rms
