@@ -37,7 +37,7 @@ class MetaLearner:
         self.envs = make_vec_envs(env_name=args.env_name, seed=args.seed, num_processes=args.num_processes,
                                   gamma=args.policy_gamma, device=device,
                                   episodes_per_task=self.args.max_rollouts_per_task,
-                                  normalise_rew=args.norm_rew_for_policy, ret_rms=None,
+                                  normalise_rew=True, ret_rms=None,
                                   tasks=None
                                   )
 
@@ -70,7 +70,6 @@ class MetaLearner:
                              belief_dim=self.args.belief_dim,
                              action_space=self.args.action_space,
                              hidden_size=self.args.encoder_gru_hidden_size,
-                             normalise_rewards=self.args.norm_rew_for_policy,
                              )
 
     def initialise_policy(self):
@@ -301,7 +300,7 @@ class MetaLearner:
         # --- visualise behaviour of policy ---
 
         if (self.iter_idx + 1) % self.args.vis_interval == 0:
-            ret_rms = self.envs.venv.ret_rms if self.args.norm_rew_for_policy else None
+            ret_rms = self.envs.venv.ret_rms
             utl_eval.visualise_behaviour(args=self.args,
                                          policy=self.policy,
                                          image_folder=self.logger.full_output_folder,
@@ -320,7 +319,7 @@ class MetaLearner:
 
         if (self.iter_idx + 1) % self.args.eval_interval == 0:
 
-            ret_rms = self.envs.venv.ret_rms if self.args.norm_rew_for_policy else None
+            ret_rms = self.envs.venv.ret_rms
             returns_per_episode = utl_eval.evaluate(args=self.args,
                                                     policy=self.policy,
                                                     ret_rms=ret_rms,
@@ -365,9 +364,8 @@ class MetaLearner:
                     torch.save(self.vae.reward_decoder, os.path.join(save_path, f"reward_decoder{idx_label}.pt"))
 
                 # save normalisation params of envs
-                if self.args.norm_rew_for_policy:
-                    rew_rms = self.envs.venv.ret_rms
-                    utl.save_obj(rew_rms, save_path, f"env_rew_rms{idx_label}")
+                rew_rms = self.envs.venv.ret_rms
+                utl.save_obj(rew_rms, save_path, f"env_rew_rms{idx_label}")
 
         # --- log some other things ---
 

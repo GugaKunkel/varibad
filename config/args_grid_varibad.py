@@ -25,13 +25,6 @@ def get_args(rest_args):
     parser.add_argument('--policy_belief_embedding_dim', type=int, default=None)
     parser.add_argument('--policy_task_embedding_dim', type=int, default=None)
 
-    # normalising (inputs/rewards/outputs)
-    parser.add_argument('--norm_state_for_policy', type=boolean_argument, default=True, help='normalise state input')
-    parser.add_argument('--norm_latent_for_policy', type=boolean_argument, default=True, help='normalise latent input')
-    parser.add_argument('--norm_belief_for_policy', type=boolean_argument, default=True, help='normalise belief input')
-    parser.add_argument('--norm_task_for_policy', type=boolean_argument, default=True, help='normalise task input')
-    parser.add_argument('--norm_rew_for_policy', type=boolean_argument, default=True, help='normalise rew for RL train')
-
     # network
     parser.add_argument('--policy_layers', nargs='+', default=[32])
     parser.add_argument('--policy_initialisation', type=str, default='normc', help='normc/orthogonal')

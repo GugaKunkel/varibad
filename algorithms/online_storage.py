@@ -16,7 +16,7 @@ class OnlineStorage(object):
                  args, num_steps, num_processes,
                  state_dim, belief_dim,
                  action_space,
-                 hidden_size, latent_dim, normalise_rewards):
+                 hidden_size, latent_dim):
 
         self.args = args
         self.state_dim = state_dim
@@ -25,9 +25,6 @@ class OnlineStorage(object):
         self.num_steps = num_steps  # how many steps to do per update (= size of online buffer)
         self.num_processes = num_processes  # number of parallel processes
         self.step = 0  # keep track of current environment step
-
-        # normalisation of the rewards
-        self.normalise_rewards = normalise_rewards
 
         # inputs to the policy
         # this will include s_0 when state was reset (hence num_steps+1)
@@ -148,11 +145,7 @@ class OnlineStorage(object):
         self.action_log_probs = None
 
     def compute_returns(self, next_value, use_gae, gamma, tau):
-
-        if self.normalise_rewards:
-            rewards = self.rewards_normalised.clone()
-        else:
-            rewards = self.rewards_raw.clone()
+        rewards = self.rewards_normalised.clone()
 
         self._compute_returns(next_value=next_value, rewards=rewards, value_preds=self.value_preds,
                               returns=self.returns,
