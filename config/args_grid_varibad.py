@@ -22,7 +22,6 @@ def get_args(rest_args):
     parser.add_argument('--policy_state_embedding_dim', type=int, default=16)
     parser.add_argument('--policy_latent_embedding_dim', type=int, default=16)
     parser.add_argument('--policy_belief_embedding_dim', type=int, default=None)
-    parser.add_argument('--policy_task_embedding_dim', type=int, default=None)
 
     # network
     parser.add_argument('--policy_layers', nargs='+', default=[32])

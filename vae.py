@@ -133,7 +133,10 @@ class VaribadVAE:
         vae_rewards = vae_rewards[:max_traj_len]
 
         # take one sample for each ELBO term
-        latent_samples = self.encoder._sample_gaussian(latent_mean, latent_logvar)
+        latent_samples = torch.distributions.Normal(
+            latent_mean,
+            torch.exp(0.5 * latent_logvar)
+        ).rsample()
 
         num_elbos = latent_samples.shape[0]
         num_decodes = vae_prev_obs.shape[0]

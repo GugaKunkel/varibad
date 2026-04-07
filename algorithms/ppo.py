@@ -22,20 +22,14 @@ class PPO:
                  use_clipped_value_loss=True,
                  ):
         self.args = args
-
-        # the model
-        self.actor_critic = actor_critic
-
+        self.actor_critic = actor_critic # the model
         self.clip_param = clip_param
         self.ppo_epoch = ppo_epoch
         self.num_mini_batch = num_mini_batch
-
         self.value_loss_coef = value_loss_coef
         self.entropy_coef = entropy_coef
-
         self.use_clipped_value_loss = use_clipped_value_loss
         self.use_huber_loss = use_huber_loss
-        
         self.optimiser_vae = optimiser_vae
         self.optimiser = optim.Adam(actor_critic.parameters(), lr=lr, eps=eps)
 

@@ -13,7 +13,7 @@ def evaluate(args,
              ret_rms,
              iter_idx,
              tasks,
-             encoder=None,
+             encoder,
              num_episodes=None
              ):
     env_name = args.env_name
@@ -52,12 +52,8 @@ def evaluate(args,
 
     # this counts how often an agent has done the same task already
     task_count = torch.zeros(num_processes).long().to(device)
-
-    if encoder is not None:
-        # reset latent state to prior
-        latent_sample, latent_mean, latent_logvar, hidden_state = encoder.prior(num_processes)
-    else:
-        latent_sample = latent_mean = latent_logvar = hidden_state = None
+    # reset latent state to prior
+    latent_sample, latent_mean, latent_logvar, hidden_state = encoder.prior(num_processes)
 
     for episode_idx in range(num_episodes):
 
@@ -77,14 +73,13 @@ def evaluate(args,
             done = np.logical_or(terminated, truncated)
             done_mdp = [info['done_mdp'] for info in infos]
 
-            if encoder is not None:
-                # update the hidden state
-                latent_sample, latent_mean, latent_logvar, hidden_state = utl.update_encoding(encoder=encoder,
-                                                                                              next_obs=state,
-                                                                                              action=action,
-                                                                                              reward=rew_raw,
-                                                                                              done=None,
-                                                                                              hidden_state=hidden_state)
+            # update the hidden state
+            latent_sample, latent_mean, latent_logvar, hidden_state = utl.update_encoding(encoder=encoder,
+                                                                                            next_obs=state,
+                                                                                            action=action,
+                                                                                            reward=rew_raw,
+                                                                                            done=None,
+                                                                                            hidden_state=hidden_state)
 
             # add rewards
             returns_per_episode[range(num_processes), task_count] += rew_raw.view(-1)
@@ -149,8 +144,7 @@ def visualise_behaviour(args,
                      iter_idx=iter_idx
                      )
 
-        plot_vae_loss(args,
-                      latent_means,
+        plot_vae_loss(latent_means,
                       latent_logvars,
                       episode_prev_obs,
                       episode_next_obs,
@@ -158,7 +152,6 @@ def visualise_behaviour(args,
                       episode_rewards,
                       image_folder=image_folder,
                       iter_idx=iter_idx,
-                      reward_decoder=reward_decoder,
                       compute_rew_reconstruction_loss=compute_rew_reconstruction_loss,
                       compute_kl_loss=compute_kl_loss,
                       )
@@ -310,8 +303,7 @@ def plot_latents(latent_means,
         plt.show()
 
 
-def plot_vae_loss(args,
-                  latent_means,
+def plot_vae_loss(latent_means,
                   latent_logvars,
                   prev_obs,
                   next_obs,
@@ -319,7 +311,6 @@ def plot_vae_loss(args,
                   rewards,
                   image_folder,
                   iter_idx,
-                  reward_decoder,
                   compute_rew_reconstruction_loss,
                   compute_kl_loss
                   ):
@@ -353,7 +344,10 @@ def plot_vae_loss(args,
 
         # compute the reconstruction loss
         # take several samples from the latent distribution
-        latent_samples = utl.sample_gaussian(curr_latent_mean.view(-1), curr_latent_logvar.view(-1), num_samples)
+        latent_samples = torch.distributions.Normal(
+            curr_latent_mean.view(-1),
+            torch.exp(0.5 * curr_latent_logvar.view(-1))
+        ).rsample((num_samples,))
 
         # expand: each latent sample will be used to make predictions for the entire trajectory
         len_traj = prev_obs.shape[1]

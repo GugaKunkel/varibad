@@ -520,7 +520,10 @@ def plot_behaviour(env, observations, goal):
 
 def compute_beliefs(env, args, reward_decoder, latent_mean, latent_logvar, goal):
     # take several samples from the latent distribution
-    samples = utl.sample_gaussian(latent_mean.view(-1), latent_logvar.view(-1), 100)
+    samples = torch.distributions.Normal(
+        latent_mean.view(-1),
+        torch.exp(0.5 * latent_logvar.view(-1))
+    ).rsample((100,))
 
     # compute reward predictions for those
     rew_pred = reward_decoder(samples)

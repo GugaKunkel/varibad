@@ -101,15 +101,6 @@ class FeatureExtractor(nn.Module):
             return torch.zeros(0, ).to(device)
 
 
-def sample_gaussian(mu, logvar, num=None):
-    std = torch.exp(0.5 * logvar)
-    if num is not None:
-        std = std.repeat(num, 1)
-        mu = mu.repeat(num, 1)
-    eps = torch.randn_like(std)
-    return mu + std * eps
-
-
 def save_obj(obj, folder, name):
     filename = os.path.join(folder, name + '.pkl')
     with open(filename, 'wb') as f:

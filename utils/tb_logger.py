@@ -33,11 +33,9 @@ class TBLogger:
                 os.mkdir(dir_path)
 
         try:
-            self.full_output_folder = os.path.join(os.path.join(dir_path, 'logs_{}'.format(args.env_name)),
-                                                   self.output_name)
+            self.full_output_folder = os.path.join(os.path.join(dir_path, 'logs_{}'.format(args.env_name)), self.output_name)
         except:
-            self.full_output_folder = os.path.join(os.path.join(dir_path, 'logs_{}'.format(args["env_name"])),
-                                                   self.output_name)
+            self.full_output_folder = os.path.join(os.path.join(dir_path, 'logs_{}'.format(args["env_name"])), self.output_name)
 
         self.writer = SummaryWriter(log_dir=self.full_output_folder)
 
