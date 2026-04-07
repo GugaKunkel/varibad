@@ -77,7 +77,6 @@ class MetaLearner:
         policy_net = Policy(
             args=self.args,
             #
-            pass_state_to_policy=self.args.pass_state_to_policy,
             pass_belief_to_policy=self.args.pass_belief_to_policy,
             dim_state=self.args.state_dim,
             dim_latent=self.args.latent_dim * 2,
@@ -98,7 +97,6 @@ class MetaLearner:
             ppo_epoch=self.args.ppo_num_epochs,
             num_mini_batch=self.args.ppo_num_minibatch,
             use_huber_loss=self.args.ppo_use_huberloss,
-            use_clipped_value_loss=self.args.ppo_use_clipped_value_loss,
             clip_param=self.args.ppo_clip_param,
             optimiser_vae=self.vae.optimiser_vae,
         )
@@ -168,8 +166,7 @@ class MetaLearner:
 
                 # before resetting, update the embedding and add to vae buffer
                 # (last state might include useful task info)
-                self.vae.rollout_storage.insert(prev_state.clone(),
-                                                action.detach().clone(),
+                self.vae.rollout_storage.insert(action.detach().clone(),
                                                 next_state.clone(),
                                                 rew_raw.clone(),
                                                 done.clone())
@@ -209,17 +206,14 @@ class MetaLearner:
                 # check if we are pre-training the VAE
                 if self.args.pretrain_len > self.iter_idx:
                     for p in range(self.args.num_vae_updates_per_pretrain):
-                        self.vae.compute_vae_loss(update=True,
-                                                  pretrain_index=self.iter_idx * self.args.num_vae_updates_per_pretrain + p)
+                        self.vae.compute_vae_loss(update=True, pretrain_index=self.iter_idx * self.args.num_vae_updates_per_pretrain + p)
                 # otherwise do the normal update (policy + vae)
                 else:
-
                     train_stats = self.update(state=prev_state,
                                               belief=belief,
                                               latent_sample=latent_sample,
                                               latent_mean=latent_mean,
                                               latent_logvar=latent_logvar)
-
                     # log
                     run_stats = [action, self.policy_storage.action_log_probs, value]
                     with torch.no_grad():
@@ -238,7 +232,7 @@ class MetaLearner:
         """
 
         # for each process, get the current batch (zero-padded obs/act/rew + length indicators)
-        prev_obs, next_obs, act, rew, lens = self.vae.rollout_storage.get_running_batch()
+        next_obs, act, rew, lens = self.vae.rollout_storage.get_running_batch()
 
         # get embedding - will return (1+sequence_len) * batch * input_size -- includes the prior!
         all_latent_samples, all_latent_means, all_latent_logvars, all_hidden_states = self.vae.encoder(actions=act,
@@ -276,9 +270,8 @@ class MetaLearner:
                                             latent_mean=latent_mean,
                                             latent_logvar=latent_logvar)
 
-            # compute returns for current rollouts
-            self.policy_storage.compute_returns(next_value, self.args.policy_use_gae, self.args.policy_gamma,
-                                                self.args.policy_tau)
+            # Use generalized advantage estimation (GAE) for ppo policy returns.
+            self.policy_storage.compute_returns(next_value, self.args.policy_gamma, self.args.policy_tau)
 
             # update agent (this will also call the VAE update!)
             policy_train_stats = self.policy.update(
