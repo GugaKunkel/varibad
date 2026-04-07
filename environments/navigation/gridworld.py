@@ -183,36 +183,6 @@ class GridNavi(gym.Env):
 
         return classes
 
-    def id_to_task(self, classes):
-        mat = torch.arange(0, self.num_cells ** 2).long().reshape((self.num_cells, self.num_cells)).numpy()
-        goals = np.zeros((len(classes), 2))
-        classes = classes.numpy()
-        for i in range(len(classes)):
-            pos = np.where(classes[i] == mat)
-            goals[i, 0] = float(pos[0][0])
-            goals[i, 1] = float(pos[1][0])
-        goals = torch.from_numpy(goals).to(device).float()
-        return goals
-
-    def goal_to_onehot_id(self, pos):
-        cl = self.task_to_id(pos)
-        if cl.dim() == 1:
-            cl = cl.view(-1, 1)
-        nb_digits = self.num_cells ** 2
-        # One hot encoding buffer that you create out of the loop and just keep reusing
-        y_onehot = torch.FloatTensor(pos.shape[0], nb_digits).to(device)
-        # In your for loop
-        y_onehot.zero_()
-        y_onehot.scatter_(1, cl, 1)
-        return y_onehot
-
-    def onehot_id_to_goal(self, pos):
-        if isinstance(pos, list):
-            pos = [self.id_to_task(p.argmax(dim=1)) for p in pos]
-        else:
-            pos = self.id_to_task(pos.argmax(dim=1))
-        return pos
-
     @staticmethod
     def visualise_behaviour(env,
                             args,
@@ -229,7 +199,6 @@ class GridNavi(gym.Env):
         """
 
         num_episodes = args.max_rollouts_per_task
-        unwrapped_env = env.venv.unwrapped.envs[0]
 
         # --- initialise things we want to keep track of ---
 
@@ -460,10 +429,10 @@ def plot_bb(env, args, episode_all_obs, episode_goals, reward_decoder,
                                          curr_goal)
                 rew_pred_means[episode_idx].append(rm)
                 rew_pred_vars[episode_idx].append(rv)
-                plot_belief(env, rm, args)
+                plot_belief(env, rm)
             elif episode_beliefs is not None:
                 curr_beliefs = episode_beliefs[episode_idx][step_idx]
-                plot_belief(env, curr_beliefs, args)
+                plot_belief(env, curr_beliefs)
             else:
                 rew_pred_means = rew_pred_vars = None
 
@@ -536,7 +505,7 @@ def compute_beliefs(env, args, reward_decoder, latent_mean, latent_logvar, goal)
     return rew_pred_means, rew_pred_vars
 
 
-def plot_belief(env, beliefs, args):
+def plot_belief(env, beliefs):
     """
     Plot the belief by taking 100 samples from the latent space and plotting the average predicted reward per cell.
     """
