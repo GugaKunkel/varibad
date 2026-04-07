@@ -15,7 +15,6 @@ class Policy(nn.Module):
                  args,
                  # input
                  pass_state_to_policy,
-                 pass_latent_to_policy,
                  pass_belief_to_policy,
                  dim_state,
                  dim_latent,
@@ -44,20 +43,18 @@ class Policy(nn.Module):
             init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.constant_(x, 0), nn.init.calculate_gain('tanh'))
 
         self.pass_state_to_policy = pass_state_to_policy
-        self.pass_latent_to_policy = pass_latent_to_policy
         self.pass_belief_to_policy = pass_belief_to_policy
 
         # set normalisation parameters for the inputs
         # (will be updated from outside using the RL batches)
         if self.pass_state_to_policy:
             self.state_rms = utl.RunningMeanStd(shape=(dim_state))
-        if self.pass_latent_to_policy:
-            self.latent_rms = utl.RunningMeanStd(shape=(dim_latent))
+        self.latent_rms = utl.RunningMeanStd(shape=(dim_latent))
         if self.pass_belief_to_policy:
             self.belief_rms = utl.RunningMeanStd(shape=(dim_belief))
 
         curr_input_dim = dim_state * int(self.pass_state_to_policy) + \
-                         dim_latent * int(self.pass_latent_to_policy) + \
+                         dim_latent + \
                          dim_belief * int(self.pass_belief_to_policy)
         # initialise encoders for separate inputs
         self.use_state_encoder = self.args.policy_state_embedding_dim is not None
@@ -65,7 +62,7 @@ class Policy(nn.Module):
             self.state_encoder = utl.FeatureExtractor(dim_state, self.args.policy_state_embedding_dim, self.activation_function)
             curr_input_dim = curr_input_dim - dim_state + self.args.policy_state_embedding_dim
         self.use_latent_encoder = self.args.policy_latent_embedding_dim is not None
-        if self.pass_latent_to_policy and self.use_latent_encoder:
+        if self.use_latent_encoder:
             self.latent_encoder = utl.FeatureExtractor(dim_latent, self.args.policy_latent_embedding_dim, self.activation_function)
             curr_input_dim = curr_input_dim - dim_latent + self.args.policy_latent_embedding_dim
         self.use_belief_encoder = self.args.policy_belief_embedding_dim is not None
@@ -112,12 +109,9 @@ class Policy(nn.Module):
                 state = self.state_encoder(state)
         else:
             state = torch.zeros(0, ).to(device)
-        if self.pass_latent_to_policy:
-            latent = (latent - self.latent_rms.mean) / torch.sqrt(self.latent_rms.var + 1e-8)
-            if self.use_latent_encoder:
-                latent = self.latent_encoder(latent)
-        else:
-            latent = torch.zeros(0, ).to(device)
+        latent = (latent - self.latent_rms.mean) / torch.sqrt(self.latent_rms.var + 1e-8)
+        if self.use_latent_encoder:
+            latent = self.latent_encoder(latent)
         if self.pass_belief_to_policy:
             belief = (belief - self.belief_rms.mean) / torch.sqrt(self.belief_rms.var + 1e-8)
             if self.use_belief_encoder:
@@ -156,12 +150,11 @@ class Policy(nn.Module):
         """ Update normalisation parameters for inputs with current data """
         if self.pass_state_to_policy:
             self.state_rms.update(policy_storage.prev_state[:-1])
-        if self.pass_latent_to_policy:
-            latent = utl.get_latent_for_policy(torch.cat(policy_storage.latent_samples[:-1]),
-                                               torch.cat(policy_storage.latent_mean[:-1]),
-                                               torch.cat(policy_storage.latent_logvar[:-1])
-                                               )
-            self.latent_rms.update(latent)
+        latent = utl.get_latent_for_policy(torch.cat(policy_storage.latent_samples[:-1]),
+                                           torch.cat(policy_storage.latent_mean[:-1]),
+                                           torch.cat(policy_storage.latent_logvar[:-1])
+                                           )
+        self.latent_rms.update(latent)
         if self.pass_belief_to_policy:
             self.belief_rms.update(policy_storage.beliefs[:-1])
 

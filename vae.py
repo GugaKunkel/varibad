@@ -59,8 +59,7 @@ class VaribadVAE:
                                                  )
 
         # initalise optimiser for the encoder and decoders
-        decoder_params = list(self.reward_decoder.parameters())
-        self.optimiser_vae = torch.optim.Adam([*self.encoder.parameters(), *decoder_params], lr=self.args.lr_vae)
+        self.optimiser_vae = torch.optim.Adam([*self.encoder.parameters(), *self.reward_decoder.parameters()], lr=self.args.lr_vae)
 
     def compute_rew_reconstruction_loss(self, latent, next_obs, reward, return_predictions=False):
         """ Compute reward reconstruction loss.

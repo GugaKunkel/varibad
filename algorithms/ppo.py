@@ -69,10 +69,9 @@ class PPO:
                 return_batch, old_action_log_probs_batch, adv_targ = sample
 
                 state_batch = state_batch.detach()
-                if latent_sample_batch is not None:
-                    latent_sample_batch = latent_sample_batch.detach()
-                    latent_mean_batch = latent_mean_batch.detach()
-                    latent_logvar_batch = latent_logvar_batch.detach()
+                latent_sample_batch = latent_sample_batch.detach()
+                latent_mean_batch = latent_mean_batch.detach()
+                latent_logvar_batch = latent_logvar_batch.detach()
 
                 latent_batch = utl.get_latent_for_policy(latent_sample=latent_sample_batch,
                                                          latent_mean=latent_mean_batch,
