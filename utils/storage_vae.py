@@ -25,7 +25,6 @@ class RolloutStorageVAE(object):
 
         # buffers for completed rollouts (stored on CPU)
         if self.max_buffer_size > 0:
-            self.prev_state = torch.zeros((self.max_traj_len, self.max_buffer_size, state_dim))
             self.next_state = torch.zeros((self.max_traj_len, self.max_buffer_size, state_dim))
             self.actions = torch.zeros((self.max_traj_len, self.max_buffer_size, action_dim))
             self.rewards = torch.zeros((self.max_traj_len, self.max_buffer_size, 1))
@@ -34,7 +33,6 @@ class RolloutStorageVAE(object):
         # storage for each running process (stored on GPU)
         self.num_processes = num_processes
         self.curr_timestep = torch.zeros((num_processes)).long()  # count environment steps so we know where to insert
-        self.running_prev_state = torch.zeros((self.max_traj_len, num_processes, state_dim)).to(device)  # for each episode will have obs 0...N-1
         self.running_next_state = torch.zeros((self.max_traj_len, num_processes, state_dim)).to(device)  # for each episode will have obs 1...N
         self.running_rewards = torch.zeros((self.max_traj_len, num_processes, 1)).to(device)
         self.running_actions = torch.zeros((self.max_traj_len, num_processes, action_dim)).to(device)
@@ -45,15 +43,14 @@ class RolloutStorageVAE(object):
         (zero-padded to maximal trajectory length since different processes can have different trajectory lengths)
         :return:
         """
-        return self.running_prev_state, self.running_next_state, self.running_actions, self.running_rewards, self.curr_timestep
+        return self.running_next_state, self.running_actions, self.running_rewards, self.curr_timestep
 
-    def insert(self, prev_state, actions, next_state, rewards, done):
+    def insert(self, actions, next_state, rewards, done):
 
         # add to temporary buffer
 
         already_inserted = False
         if len(np.unique(self.curr_timestep)) == 1:
-            self.running_prev_state[self.curr_timestep[0]] = prev_state
             self.running_next_state[self.curr_timestep[0]] = next_state
             self.running_rewards[self.curr_timestep[0]] = rewards
             self.running_actions[self.curr_timestep[0]] = actions
@@ -76,7 +73,6 @@ class RolloutStorageVAE(object):
                     self.buffer_len = max(self.buffer_len, self.insert_idx)
                 # add; note: num trajectories are along dim=1,
                 # trajectory length along dim=0, to match pytorch RNN interface
-                self.prev_state[:, self.insert_idx:self.insert_idx + self.num_processes] = self.running_prev_state
                 self.next_state[:, self.insert_idx:self.insert_idx + self.num_processes] = self.running_next_state
                 self.actions[:, self.insert_idx:self.insert_idx+self.num_processes] = self.running_actions
                 self.rewards[:, self.insert_idx:self.insert_idx+self.num_processes] = self.running_rewards
@@ -84,7 +80,6 @@ class RolloutStorageVAE(object):
                 self.insert_idx += self.num_processes
 
             # empty running buffer
-            self.running_prev_state *= 0
             self.running_next_state *= 0
             self.running_rewards *= 0
             self.running_actions *= 0
@@ -97,7 +92,6 @@ class RolloutStorageVAE(object):
             for i in range(self.num_processes):
 
                 if not already_inserted:
-                    self.running_prev_state[self.curr_timestep[i], i] = prev_state[i]
                     self.running_next_state[self.curr_timestep[i], i] = next_state[i]
                     self.running_rewards[self.curr_timestep[i], i] = rewards[i]
                     self.running_actions[self.curr_timestep[i], i] = actions[i]
@@ -120,7 +114,6 @@ class RolloutStorageVAE(object):
                                 self.buffer_len = max(self.buffer_len, self.insert_idx)
                             # add; note: num trajectories are along dim=1,
                             # trajectory length along dim=0, to match pytorch RNN interface
-                            self.prev_state[:, self.insert_idx] = self.running_prev_state[:, i].to('cpu')
                             self.next_state[:, self.insert_idx] = self.running_next_state[:, i].to('cpu')
                             self.actions[:, self.insert_idx] = self.running_actions[:, i].to('cpu')
                             self.rewards[:, self.insert_idx] = self.running_rewards[:, i].to('cpu')
@@ -128,7 +121,6 @@ class RolloutStorageVAE(object):
                             self.insert_idx += 1
 
                         # empty running buffer
-                        self.running_prev_state[:, i] *= 0
                         self.running_next_state[:, i] *= 0
                         self.running_rewards[:, i] *= 0
                         self.running_actions[:, i] *= 0
@@ -149,9 +141,8 @@ class RolloutStorageVAE(object):
         trajectory_lens = np.array(self.trajectory_lens)[rollout_indices]
 
         # select the rollouts we want
-        prev_obs = self.prev_state[:, rollout_indices, :]
         next_obs = self.next_state[:, rollout_indices, :]
         actions = self.actions[:, rollout_indices, :]
         rewards = self.rewards[:, rollout_indices, :]
 
-        return prev_obs.to(device), next_obs.to(device), actions.to(device), rewards.to(device), trajectory_lens
+        return next_obs.to(device), actions.to(device), rewards.to(device), trajectory_lens

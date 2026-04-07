@@ -19,7 +19,6 @@ class PPO:
                  num_mini_batch=5,
                  eps=None,
                  use_huber_loss=True,
-                 use_clipped_value_loss=True,
                  ):
         self.args = args
         self.actor_critic = actor_critic # the model
@@ -28,7 +27,6 @@ class PPO:
         self.num_mini_batch = num_mini_batch
         self.value_loss_coef = value_loss_coef
         self.entropy_coef = entropy_coef
-        self.use_clipped_value_loss = use_clipped_value_loss
         self.use_huber_loss = use_huber_loss
         self.optimiser_vae = optimiser_vae
         self.optimiser = optim.Adam(actor_critic.parameters(), lr=lr, eps=eps)
@@ -43,7 +41,7 @@ class PPO:
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-5)
 
         # update the normalisation parameters of policy inputs before updating
-        self.actor_critic.update_rms(args=self.args, policy_storage=policy_storage)
+        self.actor_critic.update_rms(policy_storage=policy_storage)
 
         # call this to make sure that the action_log_probs are computed
         # (needs to be done right here because of some caching thing when normalising actions)
@@ -84,36 +82,22 @@ class PPO:
                 surr2 = torch.clamp(ratio, 1.0 - self.clip_param, 1.0 + self.clip_param) * adv_targ
                 action_loss = -torch.min(surr1, surr2).mean()
 
-                if self.use_huber_loss and self.use_clipped_value_loss:
-                    value_pred_clipped = value_preds_batch + (values - value_preds_batch).clamp(-self.clip_param,
-                                                                                                self.clip_param)
+                # Simplification: clipped value loss is always enabled.
+                value_pred_clipped = value_preds_batch + (values - value_preds_batch).clamp(-self.clip_param,
+                                                                                            self.clip_param)
+                if self.use_huber_loss:
                     value_losses = F.smooth_l1_loss(values, return_batch, reduction='none')
                     value_losses_clipped = F.smooth_l1_loss(value_pred_clipped, return_batch, reduction='none')
                     value_loss = 0.5 * torch.max(value_losses, value_losses_clipped).mean()
-                elif self.use_huber_loss:
-                    value_loss = F.smooth_l1_loss(values, return_batch)
-                elif self.use_clipped_value_loss:
-                    value_pred_clipped = value_preds_batch + (values - value_preds_batch).clamp(-self.clip_param,
-                                                                                                self.clip_param)
+                else:
                     value_losses = (values - return_batch).pow(2)
                     value_losses_clipped = (value_pred_clipped - return_batch).pow(2)
                     value_loss = 0.5 * torch.max(value_losses, value_losses_clipped).mean()
-                else:
-                    value_loss = 0.5 * (return_batch - values).pow(2).mean()
 
-                # zero out the gradients
                 self.optimiser.zero_grad()
-
-                # compute policy loss and backprop
                 loss = value_loss * self.value_loss_coef + action_loss - dist_entropy * self.entropy_coef
-
-                # compute gradients (will attach to all networks involved in this computation)
                 loss.backward()
-
-                # clip gradients
                 nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.args.policy_max_grad_norm)
-
-                # update
                 self.optimiser.step()
 
                 value_loss_epoch += value_loss.item()

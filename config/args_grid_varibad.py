@@ -15,7 +15,6 @@ def get_args(rest_args):
     # --- POLICY ---
 
     # what to pass to the policy (note this is after the encoder)
-    parser.add_argument('--pass_state_to_policy', type=boolean_argument, default=True, help='condition policy on state')
     parser.add_argument('--pass_belief_to_policy', type=boolean_argument, default=False, help='condition policy on ground-truth belief')
 
     # using separate encoders for the different inputs ("None" uses no encoder)
@@ -31,7 +30,6 @@ def get_args(rest_args):
     parser.add_argument('--ppo_num_epochs', type=int, default=2, help='number of epochs per PPO update')
     parser.add_argument('--ppo_num_minibatch', type=int, default=4, help='number of minibatches to split the data')
     parser.add_argument('--ppo_use_huberloss', type=boolean_argument, default=True, help='use huberloss instead of MSE')
-    parser.add_argument('--ppo_use_clipped_value_loss', type=boolean_argument, default=True, help='clip value loss')
     parser.add_argument('--ppo_clip_param', type=float, default=0.05, help='clamp param')
 
     # other hyperparameters
@@ -41,12 +39,9 @@ def get_args(rest_args):
     parser.add_argument('--policy_num_steps', type=int, default=60,
                         help='number of env steps to do (per process) before updating')
     parser.add_argument('--policy_eps', type=float, default=1e-8, help='optimizer epsilon for ppo')
-    parser.add_argument('--policy_init_std', type=float, default=1.0, help='only used for continuous actions')
     parser.add_argument('--policy_value_loss_coef', type=float, default=0.5, help='value loss coefficient')
     parser.add_argument('--policy_entropy_coef', type=float, default=0.01, help='entropy term coefficient')
     parser.add_argument('--policy_gamma', type=float, default=0.95, help='discount factor for rewards')
-    parser.add_argument('--policy_use_gae', type=boolean_argument, default=True,
-                        help='use generalized advantage estimation')
     parser.add_argument('--policy_tau', type=float, default=0.95, help='gae parameter')
     parser.add_argument('--policy_max_grad_norm', type=float, default=0.5, help='max norm of gradients')
     parser.add_argument('--encoder_max_grad_norm', type=float, default=None, help='max norm of gradients')

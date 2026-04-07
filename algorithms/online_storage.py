@@ -70,8 +70,7 @@ class OnlineStorage(object):
         self.to_device()
 
     def to_device(self):
-        if self.args.pass_state_to_policy:
-            self.prev_state = self.prev_state.to(device)
+        self.prev_state = self.prev_state.to(device)
         self.latent_samples = [t.to(device) for t in self.latent_samples]
         self.latent_mean = [t.to(device) for t in self.latent_mean]
         self.latent_logvar = [t.to(device) for t in self.latent_logvar]
@@ -136,25 +135,14 @@ class OnlineStorage(object):
         self.bad_masks[0].copy_(self.bad_masks[-1])
         self.action_log_probs = None
 
-    def compute_returns(self, next_value, use_gae, gamma, tau):
+    def compute_returns(self, next_value, gamma, tau):
         rewards = self.rewards_normalised.clone()
-
-        self._compute_returns(next_value=next_value, rewards=rewards, value_preds=self.value_preds,
-                              returns=self.returns,
-                              gamma=gamma, tau=tau, use_gae=use_gae)
-
-    def _compute_returns(self, next_value, rewards, value_preds, returns, gamma, tau, use_gae):
-        if use_gae:
-            value_preds[-1] = next_value
-            gae = 0
-            for step in reversed(range(rewards.size(0))):
-                delta = rewards[step] + gamma * value_preds[step + 1] * self.masks[step + 1] - value_preds[step]
-                gae = delta + gamma * tau * self.masks[step + 1] * gae
-                returns[step] = gae + value_preds[step]
-        else:
-            returns[-1] = next_value
-            for step in reversed(range(rewards.size(0))):
-                returns[step] = returns[step + 1] * gamma * self.masks[step + 1] + rewards[step]
+        self.value_preds[-1] = next_value
+        gae = 0
+        for step in reversed(range(rewards.size(0))):
+            delta = rewards[step] + gamma * self.value_preds[step + 1] * self.masks[step + 1] - self.value_preds[step]
+            gae = delta + gamma * tau * self.masks[step + 1] * gae
+            self.returns[step] = gae + self.value_preds[step]
 
     def before_update(self, policy):
         latent = utl.get_latent_for_policy(latent_sample=torch.stack(self.latent_samples[:-1]),
@@ -187,10 +175,7 @@ class OnlineStorage(object):
             drop_last=True)
         for indices in sampler:
 
-            if self.args.pass_state_to_policy:
-                state_batch = self.prev_state[:-1].reshape(-1, *self.prev_state.size()[2:])[indices]
-            else:
-                state_batch = None
+            state_batch = self.prev_state[:-1].reshape(-1, *self.prev_state.size()[2:])[indices]
             latent_sample_batch = torch.cat(self.latent_samples[:-1])[indices]
             latent_mean_batch = torch.cat(self.latent_mean[:-1])[indices]
             latent_logvar_batch = torch.cat(self.latent_logvar[:-1])[indices]

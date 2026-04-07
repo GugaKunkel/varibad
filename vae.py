@@ -110,7 +110,7 @@ class VaribadVAE:
 
         return kl_divergences
 
-    def compute_loss(self, latent_mean, latent_logvar, vae_prev_obs, vae_next_obs, vae_actions, vae_rewards, trajectory_lens):
+    def compute_loss(self, latent_mean, latent_logvar, vae_next_obs, vae_actions, vae_rewards, trajectory_lens):
         """
         Computes the VAE loss for the given data.
         Batches everything together and therefore needs all trajectories to be of the same length.
@@ -127,7 +127,6 @@ class VaribadVAE:
         max_traj_len = np.max(trajectory_lens)
         latent_mean = latent_mean[:max_traj_len + 1]
         latent_logvar = latent_logvar[:max_traj_len + 1]
-        vae_prev_obs = vae_prev_obs[:max_traj_len]
         vae_next_obs = vae_next_obs[:max_traj_len]
         vae_actions = vae_actions[:max_traj_len]
         vae_rewards = vae_rewards[:max_traj_len]
@@ -139,7 +138,7 @@ class VaribadVAE:
         ).rsample()
 
         num_elbos = latent_samples.shape[0]
-        num_decodes = vae_prev_obs.shape[0]
+        num_decodes = vae_next_obs.shape[0]
         batchsize = latent_samples.shape[1]  # number of trajectories
 
         # subsample elbo terms
@@ -208,8 +207,8 @@ class VaribadVAE:
             return 0
 
         # get a mini-batch
-        vae_prev_obs, vae_next_obs, vae_actions, vae_rewards, trajectory_lens = self.rollout_storage.get_batch(batchsize=self.args.vae_batch_num_trajs)
-        # vae_prev_obs will be of size: max trajectory len x num trajectories x dimension of observations
+        vae_next_obs, vae_actions, vae_rewards, trajectory_lens = self.rollout_storage.get_batch(batchsize=self.args.vae_batch_num_trajs)
+        # vae_next_obs will be of size: max trajectory len x num trajectories x dimension of observations
 
         # pass through encoder (outputs will be: (max_traj_len+1) x number of rollouts x latent_dim -- includes the prior!)
         _, latent_mean, latent_logvar, _ = self.encoder(actions=vae_actions,
@@ -220,7 +219,7 @@ class VaribadVAE:
                                                         detach_every=self.args.tbptt_stepsize if hasattr(self.args, 'tbptt_stepsize') else None,
                                                         )
         rew_reconstruction_loss, kl_loss = self.compute_loss(
-            latent_mean, latent_logvar, vae_prev_obs, vae_next_obs, vae_actions, vae_rewards, trajectory_lens
+            latent_mean, latent_logvar, vae_next_obs, vae_actions, vae_rewards, trajectory_lens
         )
 
         # VAE loss = KL loss + reward reconstruction

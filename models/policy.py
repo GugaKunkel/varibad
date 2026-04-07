@@ -1,7 +1,6 @@
 """
 Based on https://github.com/ikostrikov/pytorch-a2c-ppo-acktr
 """
-import numpy as np
 import torch
 import torch.nn as nn
 
@@ -14,7 +13,6 @@ class Policy(nn.Module):
     def __init__(self,
                  args,
                  # input
-                 pass_state_to_policy,
                  pass_belief_to_policy,
                  dim_state,
                  dim_latent,
@@ -31,9 +29,7 @@ class Policy(nn.Module):
         - latent variable (from VAE)
         """
         super(Policy, self).__init__()
-
         self.args = args
-
         self.activation_function = nn.Tanh()
 
         if policy_initialisation == 'normc':
@@ -41,29 +37,20 @@ class Policy(nn.Module):
         elif policy_initialisation == 'orthogonal':
             init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.constant_(x, 0), nn.init.calculate_gain('tanh'))
 
-        self.pass_state_to_policy = pass_state_to_policy
         self.pass_belief_to_policy = pass_belief_to_policy
 
         # set normalisation parameters for the inputs
         # (will be updated from outside using the RL batches)
-        if self.pass_state_to_policy:
-            self.state_rms = utl.RunningMeanStd(shape=(dim_state))
+        self.state_rms = utl.RunningMeanStd(shape=(dim_state))
         self.latent_rms = utl.RunningMeanStd(shape=(dim_latent))
         if self.pass_belief_to_policy:
             self.belief_rms = utl.RunningMeanStd(shape=(dim_belief))
 
-        curr_input_dim = dim_state * int(self.pass_state_to_policy) + \
-                         dim_latent + \
-                         dim_belief * int(self.pass_belief_to_policy)
-        # initialise encoders for separate inputs
-        self.use_state_encoder = self.args.policy_state_embedding_dim is not None
-        if self.pass_state_to_policy and self.use_state_encoder:
-            self.state_encoder = utl.FeatureExtractor(dim_state, self.args.policy_state_embedding_dim, self.activation_function)
-            curr_input_dim = curr_input_dim - dim_state + self.args.policy_state_embedding_dim
-        self.use_latent_encoder = self.args.policy_latent_embedding_dim is not None
-        if self.use_latent_encoder:
-            self.latent_encoder = utl.FeatureExtractor(dim_latent, self.args.policy_latent_embedding_dim, self.activation_function)
-            curr_input_dim = curr_input_dim - dim_latent + self.args.policy_latent_embedding_dim
+        curr_input_dim = dim_state + dim_latent + dim_belief * int(self.pass_belief_to_policy)
+        self.state_encoder = utl.FeatureExtractor(dim_state, self.args.policy_state_embedding_dim, self.activation_function)
+        curr_input_dim = curr_input_dim - dim_state + self.args.policy_state_embedding_dim
+        self.latent_encoder = utl.FeatureExtractor(dim_latent, self.args.policy_latent_embedding_dim, self.activation_function)
+        curr_input_dim = curr_input_dim - dim_latent + self.args.policy_latent_embedding_dim
         self.use_belief_encoder = self.args.policy_belief_embedding_dim is not None
         if self.pass_belief_to_policy and self.use_belief_encoder:
             self.belief_encoder = utl.FeatureExtractor(dim_belief, self.args.policy_belief_embedding_dim, self.activation_function)
@@ -102,15 +89,10 @@ class Policy(nn.Module):
     def forward(self, state, latent, belief):
 
         # handle inputs (normalise + embed)
-        if self.pass_state_to_policy:
-            state = (state - self.state_rms.mean) / torch.sqrt(self.state_rms.var + 1e-8)
-            if self.use_state_encoder:
-                state = self.state_encoder(state)
-        else:
-            state = torch.zeros(0, ).to(device)
+        state = (state - self.state_rms.mean) / torch.sqrt(self.state_rms.var + 1e-8)
+        state = self.state_encoder(state)
         latent = (latent - self.latent_rms.mean) / torch.sqrt(self.latent_rms.var + 1e-8)
-        if self.use_latent_encoder:
-            latent = self.latent_encoder(latent)
+        latent = self.latent_encoder(latent)
         if self.pass_belief_to_policy:
             belief = (belief - self.belief_rms.mean) / torch.sqrt(self.belief_rms.var + 1e-8)
             if self.use_belief_encoder:
@@ -132,10 +114,7 @@ class Policy(nn.Module):
         value, actor_features = self.forward(state=state, latent=latent, belief=belief)
         dist = self.dist(actor_features)
         if deterministic:
-            if isinstance(dist, FixedCategorical):
-                action = dist.mode()
-            else:
-                action = dist.mean
+            action = dist.mode()
         else:
             action = dist.sample()
 
@@ -145,10 +124,9 @@ class Policy(nn.Module):
         value, _ = self.forward(state, latent, belief)
         return value
 
-    def update_rms(self, args, policy_storage):
+    def update_rms(self, policy_storage):
         """ Update normalisation parameters for inputs with current data """
-        if self.pass_state_to_policy:
-            self.state_rms.update(policy_storage.prev_state[:-1])
+        self.state_rms.update(policy_storage.prev_state[:-1])
         latent = utl.get_latent_for_policy(torch.cat(policy_storage.latent_samples[:-1]),
                                            torch.cat(policy_storage.latent_mean[:-1]),
                                            torch.cat(policy_storage.latent_logvar[:-1])
