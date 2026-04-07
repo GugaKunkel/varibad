@@ -160,21 +160,3 @@ def seed(seed):
     torch.manual_seed(seed)
     torch.random.manual_seed(seed)
     np.random.seed(seed)
-
-
-def clip(value, low, high):
-    """Imitates `{np,tf}.clip`.
-
-    `torch.clamp` doesn't support tensor valued low/high so this provides the
-    clip functionality.
-
-    TODO(hartikainen): The broadcasting hasn't been extensively tested yet,
-        but works for the regular cases where
-        `value.shape == low.shape == high.shape` or when `{low,high}.shape == ()`.
-    """
-    low, high = torch.tensor(low), torch.tensor(high)
-
-    assert torch.all(low <= high), (low, high)
-
-    clipped_value = torch.max(torch.min(value, high), low)
-    return clipped_value

@@ -86,8 +86,7 @@ class MetaLearner:
             hidden_layers=self.args.policy_layers,
             policy_initialisation=self.args.policy_initialisation,
             #
-            action_space=self.envs.action_space,
-            init_std=self.args.policy_init_std,
+            action_space=self.envs.action_space
         ).to(device)
         policy = PPO(
             self.args,

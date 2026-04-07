@@ -127,9 +127,8 @@ class PPO:
                 dist_entropy_epoch += dist_entropy.item()
                 loss_epoch += loss.item()
 
-        if self.optimiser_vae is not None:
-            for _ in range(self.args.num_vae_updates):
-                compute_vae_loss(update=True)
+        for _ in range(self.args.num_vae_updates):
+            compute_vae_loss(update=True)
 
         num_updates = self.ppo_epoch * self.num_mini_batch
 

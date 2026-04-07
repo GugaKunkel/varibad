@@ -23,8 +23,7 @@ class Policy(nn.Module):
                  hidden_layers,
                  policy_initialisation,  # orthogonal / normc
                  # output
-                 action_space,
-                 init_std,
+                 action_space
                  ):
         """
         The policy can get any of these as input:
