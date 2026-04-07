@@ -140,7 +140,6 @@ class MetaLearner:
                 # sample actions from policy
                 with torch.no_grad():
                     value, action = utl.select_action(
-                        args=self.args,
                         policy=self.policy,
                         state=prev_state,
                         belief=belief,
@@ -153,8 +152,8 @@ class MetaLearner:
                 # take step in the environment
                 [next_state, belief], (rew_raw, rew_normalised), terminated, truncated, infos = utl.env_step(self.envs, action, self.args)
                 done = np.logical_or(terminated, truncated)
-
                 done = torch.from_numpy(np.array(done, dtype=int)).to(device).float().view((-1, 1))
+                
                 # create mask for episode ends
                 masks_done = torch.FloatTensor([[0.0] if done_ else [1.0] for done_ in done]).to(device)
                 # bad_mask is true if episode ended because time limit was reached
@@ -176,8 +175,7 @@ class MetaLearner:
                                                 action.detach().clone(),
                                                 next_state.clone(),
                                                 rew_raw.clone(),
-                                                done.clone(),
-                                                None)
+                                                done.clone())
 
                 # add the obs before reset to the policy storage
                 self.policy_storage.next_state[step] = next_state.clone()
@@ -185,14 +183,12 @@ class MetaLearner:
                 # reset environments that are done
                 done_indices = np.argwhere(done.cpu().flatten()).flatten()
                 if len(done_indices) > 0:
-                    next_state, belief = utl.reset_env(self.envs, self.args,
-                                                       indices=done_indices, state=next_state)
+                    next_state, belief = utl.reset_env(self.envs, self.args, indices=done_indices, state=next_state)
 
                 # add experience to policy buffer
                 self.policy_storage.insert(
                     state=next_state,
                     belief=belief,
-                    task=None,
                     actions=action,
                     rewards_raw=rew_raw,
                     rewards_normalised=rew_normalised,
@@ -263,7 +259,7 @@ class MetaLearner:
         return latent_sample, latent_mean, latent_logvar, hidden_state
 
     def get_value(self, state, belief, latent_sample, latent_mean, latent_logvar):
-        latent = utl.get_latent_for_policy(self.args, latent_sample=latent_sample, latent_mean=latent_mean, latent_logvar=latent_logvar)
+        latent = utl.get_latent_for_policy(latent_sample=latent_sample, latent_mean=latent_mean, latent_logvar=latent_logvar)
         return self.policy.actor_critic.get_value(state=state, belief=belief, latent=latent).detach()
 
     def update(self, state, belief, latent_sample, latent_mean, latent_logvar):
@@ -285,8 +281,7 @@ class MetaLearner:
 
             # compute returns for current rollouts
             self.policy_storage.compute_returns(next_value, self.args.policy_use_gae, self.args.policy_gamma,
-                                                self.args.policy_tau,
-                                                use_proper_time_limits=self.args.use_proper_time_limits)
+                                                self.args.policy_tau)
 
             # update agent (this will also call the VAE update!)
             policy_train_stats = self.policy.update(

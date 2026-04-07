@@ -89,14 +89,8 @@ class Policy(nn.Module):
         self.critic_linear = nn.Linear(hidden_layers[-1], 1)
 
         # output distributions of the policy
-        if action_space.__class__.__name__ == "Discrete":
-            num_outputs = action_space.n
-            self.dist = Categorical(hidden_layers[-1], num_outputs)
-        elif action_space.__class__.__name__ == "Box":
-            num_outputs = action_space.shape[0]
-            self.dist = DiagGaussian(hidden_layers[-1], num_outputs, init_std)
-        else:
-            raise NotImplementedError
+        num_outputs = action_space.n
+        self.dist = Categorical(hidden_layers[-1], num_outputs)
 
     def forward_actor(self, inputs):
         h = inputs
@@ -169,8 +163,7 @@ class Policy(nn.Module):
         if self.pass_state_to_policy and self.norm_state:
             self.state_rms.update(policy_storage.prev_state[:-1])
         if self.pass_latent_to_policy and self.norm_latent:
-            latent = utl.get_latent_for_policy(args,
-                                               torch.cat(policy_storage.latent_samples[:-1]),
+            latent = utl.get_latent_for_policy(torch.cat(policy_storage.latent_samples[:-1]),
                                                torch.cat(policy_storage.latent_mean[:-1]),
                                                torch.cat(policy_storage.latent_logvar[:-1])
                                                )
@@ -196,15 +189,6 @@ log_prob_cat = FixedCategorical.log_prob
 FixedCategorical.log_probs = lambda self, actions: log_prob_cat(self, actions.squeeze(-1)).unsqueeze(-1)
 
 FixedCategorical.mode = lambda self: self.probs.argmax(dim=-1, keepdim=True)
-
-FixedNormal = torch.distributions.Normal
-log_prob_normal = FixedNormal.log_prob
-FixedNormal.log_probs = lambda self, actions: log_prob_normal(self, actions).sum(-1, keepdim=True)
-
-entropy = FixedNormal.entropy
-FixedNormal.entropy = lambda self: entropy(self).sum(-1)
-
-FixedNormal.mode = lambda self: self.mean
 
 
 def init(module, weight_init, bias_init, gain=1.0):
@@ -233,25 +217,4 @@ class Categorical(nn.Module):
     def forward(self, x):
         x = self.linear(x)
         return FixedCategorical(logits=x)
-
-
-class DiagGaussian(nn.Module):
-    def __init__(self, num_inputs, num_outputs, init_std):
-        super(DiagGaussian, self).__init__()
-
-        init_ = lambda m: init(m,
-                               init_normc_,
-                               lambda x: nn.init.constant_(x, 0))
-
-        self.fc_mean = init_(nn.Linear(num_inputs, num_outputs))
-        self.logstd = nn.Parameter(np.log(torch.zeros(num_outputs) + init_std))
-        self.min_std = torch.tensor([1e-6]).to(device)
-
-    def forward(self, x):
-
-        action_mean = self.fc_mean(x)
-        std = torch.max(self.min_std, self.logstd.exp())
-        dist = FixedNormal(action_mean, std)
-
-        return dist
 

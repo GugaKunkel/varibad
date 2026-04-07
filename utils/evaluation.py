@@ -64,8 +64,7 @@ def evaluate(args,
         for step_idx in range(num_steps):
 
             with torch.no_grad():
-                _, action = utl.select_action(args=args,
-                                              policy=policy,
+                _, action = utl.select_action(policy=policy,
                                               state=state,
                                               belief=belief,
                                               latent_sample=latent_sample,

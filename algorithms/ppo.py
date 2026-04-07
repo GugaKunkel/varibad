@@ -64,7 +64,7 @@ class PPO:
             data_generator = policy_storage.feed_forward_generator(advantages, self.num_mini_batch)
             for sample in data_generator:
 
-                state_batch, belief_batch, _task_batch, \
+                state_batch, belief_batch, \
                 actions_batch, latent_sample_batch, latent_mean_batch, latent_logvar_batch, value_preds_batch, \
                 return_batch, old_action_log_probs_batch, adv_targ = sample
 
@@ -74,7 +74,7 @@ class PPO:
                     latent_mean_batch = latent_mean_batch.detach()
                     latent_logvar_batch = latent_logvar_batch.detach()
 
-                latent_batch = utl.get_latent_for_policy(args=self.args, latent_sample=latent_sample_batch,
+                latent_batch = utl.get_latent_for_policy(latent_sample=latent_sample_batch,
                                                          latent_mean=latent_mean_batch,
                                                          latent_logvar=latent_logvar_batch
                                                          )

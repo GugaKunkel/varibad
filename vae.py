@@ -52,8 +52,7 @@ class VaribadVAE:
                                                  max_num_rollouts=self.args.size_vae_buffer,
                                                  state_dim=self.args.state_dim,
                                                  action_dim=self.args.action_dim,
-                                                 vae_buffer_add_thresh=self.args.vae_buffer_add_thresh,
-                                                 task_dim=None
+                                                 vae_buffer_add_thresh=self.args.vae_buffer_add_thresh
                                                  )
 
         # initalise optimiser for the encoder and decoders
@@ -108,7 +107,7 @@ class VaribadVAE:
         (No reduction of loss along batch dimension is done here; sum/avg has to be done outside) """
 
         if self.args.multihead_for_reward:
-            rew_pred = self.reward_decoder(latent, None)
+            rew_pred = self.reward_decoder(latent)
             if self.args.rew_pred_type == 'categorical':
                 rew_pred = F.softmax(rew_pred, dim=-1)
             elif self.args.rew_pred_type == 'bernoulli':
@@ -121,9 +120,7 @@ class VaribadVAE:
                 state_indices = state_indices.unsqueeze(-1)
             rew_pred = rew_pred.gather(dim=-1, index=state_indices)
             rew_target = (reward == 1).float()
-            if self.args.rew_pred_type == 'deterministic':  # TODO: untested!
-                loss_rew = (rew_pred - reward).pow(2).mean(dim=-1)
-            elif self.args.rew_pred_type in ['categorical', 'bernoulli']:
+            if self.args.rew_pred_type in ['categorical', 'bernoulli']:
                 loss_rew = F.binary_cross_entropy(rew_pred, rew_target, reduction='none').mean(dim=-1)
             else:
                 raise NotImplementedError
@@ -156,8 +153,7 @@ class VaribadVAE:
 
         return kl_divergences
 
-    def compute_loss(self, latent_mean, latent_logvar, vae_prev_obs, vae_next_obs, vae_actions,
-                     vae_rewards, trajectory_lens):
+    def compute_loss(self, latent_mean, latent_logvar, vae_prev_obs, vae_next_obs, vae_actions, vae_rewards, trajectory_lens):
         """
         Computes the VAE loss for the given data.
         Batches everything together and therefore needs all trajectories to be of the same length.
@@ -200,8 +196,7 @@ class VaribadVAE:
                 elbo_indices = np.concatenate([np.random.choice(range(0, t + 1), self.args.vae_subsample_elbos,
                                                                 replace=self.args.vae_subsample_elbos > (t+1)) for t in trajectory_lens])
                 if max_traj_len < self.args.vae_subsample_elbos:
-                    warnings.warn('The required number of ELBOs is larger than the shortest trajectory, '
-                                  'so there will be duplicates in your batch.')
+                    warnings.warn('The required number of ELBOs is larger than the shortest trajectory, so there will be duplicates in your batch.')
             task_indices = torch.arange(batchsize).repeat(self.args.vae_subsample_elbos)  # for selection mask
             latent_samples = latent_samples[elbo_indices, task_indices, :].reshape((self.args.vae_subsample_elbos, batchsize, -1))
             num_elbos = latent_samples.shape[0]
@@ -240,8 +235,7 @@ class VaribadVAE:
         if self.args.decode_reward:
             # compute reconstruction loss for this trajectory (for each timestep that was encoded, decode everything and sum it up)
             # shape: [num_elbo_terms] x [num_reconstruction_terms] x [num_trajectories]
-            rew_reconstruction_loss = self.compute_rew_reconstruction_loss(dec_embedding, dec_prev_obs, dec_next_obs,
-                                                                           dec_actions, dec_rewards)
+            rew_reconstruction_loss = self.compute_rew_reconstruction_loss(dec_embedding, dec_prev_obs, dec_next_obs, dec_actions, dec_rewards)
             # avg/sum across individual ELBO terms
             if self.args.vae_avg_elbo_terms:
                 rew_reconstruction_loss = rew_reconstruction_loss.mean(dim=0)
@@ -258,8 +252,7 @@ class VaribadVAE:
             rew_reconstruction_loss = 0
 
         if self.args.decode_state:
-            state_reconstruction_loss = self.compute_state_reconstruction_loss(dec_embedding, dec_prev_obs,
-                                                                               dec_next_obs, dec_actions)
+            state_reconstruction_loss = self.compute_state_reconstruction_loss(dec_embedding, dec_prev_obs, dec_next_obs, dec_actions)
             # avg/sum across individual ELBO terms
             if self.args.vae_avg_elbo_terms:
                 state_reconstruction_loss = state_reconstruction_loss.mean(dim=0)
@@ -295,8 +288,7 @@ class VaribadVAE:
             return 0
 
         # get a mini-batch
-        vae_prev_obs, vae_next_obs, vae_actions, vae_rewards, _, \
-        trajectory_lens = self.rollout_storage.get_batch(batchsize=self.args.vae_batch_num_trajs)
+        vae_prev_obs, vae_next_obs, vae_actions, vae_rewards, trajectory_lens = self.rollout_storage.get_batch(batchsize=self.args.vae_batch_num_trajs)
         # vae_prev_obs will be of size: max trajectory len x num trajectories x dimension of observations
 
         # pass through encoder (outputs will be: (max_traj_len+1) x number of rollouts x latent_dim -- includes the prior!)
@@ -307,9 +299,7 @@ class VaribadVAE:
                                                         return_prior=True,
                                                         detach_every=self.args.tbptt_stepsize if hasattr(self.args, 'tbptt_stepsize') else None,
                                                         )
-        losses = self.compute_loss(latent_mean, latent_logvar, vae_prev_obs, vae_next_obs, vae_actions,
-                                       vae_rewards, trajectory_lens)
-        rew_reconstruction_loss, state_reconstruction_loss, kl_loss = losses
+        rew_reconstruction_loss, state_reconstruction_loss, kl_loss = self.compute_loss(latent_mean, latent_logvar, vae_prev_obs, vae_next_obs, vae_actions,vae_rewards, trajectory_lens)
 
         # VAE loss = KL loss + reward reconstruction + state transition reconstruction
         # take average (this is the expectation over p(M))
@@ -339,10 +329,7 @@ class VaribadVAE:
             # update
             self.optimiser_vae.step()
 
-        self.log(elbo_loss, rew_reconstruction_loss, state_reconstruction_loss, kl_loss,
-                 pretrain_index)
-
-
+        self.log(elbo_loss, rew_reconstruction_loss, state_reconstruction_loss, kl_loss, pretrain_index)
         return elbo_loss
 
     def log(self, elbo_loss, rew_reconstruction_loss, state_reconstruction_loss, kl_loss,

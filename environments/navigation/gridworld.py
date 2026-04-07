@@ -295,8 +295,7 @@ class GridNavi(gym.Env):
                     episode_prev_obs[episode_idx].append(state.clone())
 
                 # act
-                _, action = utl.select_action(args=args,
-                                                 policy=policy,
+                _, action = utl.select_action(policy=policy,
                                                  state=state.view(-1),
                                                  belief=belief,
                                                  deterministic=True,

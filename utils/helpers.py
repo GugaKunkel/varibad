@@ -39,14 +39,13 @@ def env_step(env, action, args):
     return [next_obs, belief], reward, terminated, truncated, infos
 
 
-def select_action(args,
-                  policy,
+def select_action(policy,
                   deterministic,
                   state=None,
                   belief=None,
                   latent_sample=None, latent_mean=None, latent_logvar=None):
     """ Select action using the policy. """
-    latent = get_latent_for_policy(args=args, latent_sample=latent_sample, latent_mean=latent_mean,
+    latent = get_latent_for_policy(latent_sample=latent_sample, latent_mean=latent_mean,
                                    latent_logvar=latent_logvar)
     action = policy.act(state=state, latent=latent, belief=belief, deterministic=deterministic)
     if isinstance(action, list) or isinstance(action, tuple):
@@ -57,8 +56,7 @@ def select_action(args,
     return value, action
 
 
-def get_latent_for_policy(args, latent_sample=None, latent_mean=None, latent_logvar=None):
-
+def get_latent_for_policy(latent_sample=None, latent_mean=None, latent_logvar=None):
     if (latent_sample is None) and (latent_mean is None) and (latent_logvar is None):
         return None
 
