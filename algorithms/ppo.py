@@ -12,7 +12,6 @@ class PPO:
                  actor_critic,
                  value_loss_coef,
                  entropy_coef,
-                 optimiser_vae=None,
                  lr=None,
                  clip_param=0.2,
                  ppo_epoch=5,
@@ -28,7 +27,6 @@ class PPO:
         self.value_loss_coef = value_loss_coef
         self.entropy_coef = entropy_coef
         self.use_huber_loss = use_huber_loss
-        self.optimiser_vae = optimiser_vae
         self.optimiser = optim.Adam(actor_critic.parameters(), lr=lr, eps=eps)
 
     def update(self,
@@ -76,8 +74,7 @@ class PPO:
                                                        belief=belief_batch,
                                                        action=actions_batch)
 
-                ratio = torch.exp(action_log_probs -
-                                  old_action_log_probs_batch)
+                ratio = torch.exp(action_log_probs - old_action_log_probs_batch)
                 surr1 = ratio * adv_targ
                 surr2 = torch.clamp(ratio, 1.0 - self.clip_param, 1.0 + self.clip_param) * adv_targ
                 action_loss = -torch.min(surr1, surr2).mean()

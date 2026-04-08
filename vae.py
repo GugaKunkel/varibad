@@ -174,27 +174,17 @@ class VaribadVAE:
         # compute reconstruction loss for this trajectory (for each timestep that was encoded, decode everything and sum it up)
         # shape: [num_elbo_terms] x [num_reconstruction_terms] x [num_trajectories]
         rew_reconstruction_loss = self.compute_rew_reconstruction_loss(dec_embedding, dec_next_obs, dec_rewards)
-        # avg/sum across individual ELBO terms
-        if self.args.vae_avg_elbo_terms:
-            rew_reconstruction_loss = rew_reconstruction_loss.mean(dim=0)
-        else:
-            rew_reconstruction_loss = rew_reconstruction_loss.sum(dim=0)
-        # avg/sum across individual reconstruction terms
-        if self.args.vae_avg_reconstruction_terms:
-            rew_reconstruction_loss = rew_reconstruction_loss.mean(dim=0)
-        else:
-            rew_reconstruction_loss = rew_reconstruction_loss.sum(dim=0)
+        # We always sum ELBO terms here; if training is poor, try changing to averaging ELBO terms.
+        rew_reconstruction_loss = rew_reconstruction_loss.sum(dim=0)
+        # We always sum reconstruction terms here; if training is poor, try changing to averaging reconstruction terms.
+        rew_reconstruction_loss = rew_reconstruction_loss.sum(dim=0)
         # average across tasks
         rew_reconstruction_loss = rew_reconstruction_loss.mean()
 
         # compute the KL term for each ELBO term of the current trajectory
         # shape: [num_elbo_terms] x [num_trajectories]
         kl_loss = self.compute_kl_loss(latent_mean, latent_logvar, elbo_indices)
-        # avg/sum the elbos
-        if self.args.vae_avg_elbo_terms:
-            kl_loss = kl_loss.mean(dim=0)
-        else:
-            kl_loss = kl_loss.sum(dim=0)
+        kl_loss = kl_loss.sum(dim=0)
         # average across tasks
         kl_loss = kl_loss.sum(dim=0).mean()
 

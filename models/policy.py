@@ -17,9 +17,7 @@ class Policy(nn.Module):
                  dim_state,
                  dim_latent,
                  dim_belief,
-                 # hidden
                  hidden_layers,
-                 policy_initialisation,  # orthogonal / normc
                  # output
                  action_space
                  ):
@@ -31,16 +29,11 @@ class Policy(nn.Module):
         super(Policy, self).__init__()
         self.args = args
         self.activation_function = nn.Tanh()
-
-        if policy_initialisation == 'normc':
-            init_ = lambda m: init(m, init_normc_, lambda x: nn.init.constant_(x, 0), nn.init.calculate_gain('tanh'))
-        elif policy_initialisation == 'orthogonal':
-            init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.constant_(x, 0), nn.init.calculate_gain('tanh'))
+        init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.constant_(x, 0), nn.init.calculate_gain('tanh'))
 
         self.pass_belief_to_policy = pass_belief_to_policy
 
-        # set normalisation parameters for the inputs
-        # (will be updated from outside using the RL batches)
+        # set normalisation parameters for the inputs (will be updated from outside using the RL batches)
         self.state_rms = utl.RunningMeanStd(shape=(dim_state))
         self.latent_rms = utl.RunningMeanStd(shape=(dim_latent))
         if self.pass_belief_to_policy:
@@ -87,7 +80,6 @@ class Policy(nn.Module):
         return h
 
     def forward(self, state, latent, belief):
-
         # handle inputs (normalise + embed)
         state = (state - self.state_rms.mean) / torch.sqrt(self.state_rms.var + 1e-8)
         state = self.state_encoder(state)
@@ -159,13 +151,6 @@ def init(module, weight_init, bias_init, gain=1.0):
     weight_init(module.weight.data, gain=gain)
     bias_init(module.bias.data)
     return module
-
-
-# https://github.com/openai/baselines/blob/master/baselines/common/tf_util.py#L87
-def init_normc_(weight, gain=1):
-    weight.normal_(0, 1)
-    weight *= gain / torch.sqrt(weight.pow(2).sum(1, keepdim=True))
-
 
 class Categorical(nn.Module):
     def __init__(self, num_inputs, num_outputs):
