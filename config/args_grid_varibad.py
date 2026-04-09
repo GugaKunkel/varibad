@@ -14,10 +14,8 @@ def get_args(rest_args):
 
     # --- POLICY ---
 
-    # what to pass to the policy (note this is after the encoder)
-    parser.add_argument('--pass_belief_to_policy', type=boolean_argument, default=False, help='condition policy on ground-truth belief')
-
     # using separate encoders for the different inputs ("None" uses no encoder)
+    parser.add_argument('--pass_belief_to_policy', type=boolean_argument, default=False, help='condition policy on ground-truth belief')
     parser.add_argument('--policy_state_embedding_dim', type=int, default=16)
     parser.add_argument('--policy_latent_embedding_dim', type=int, default=16)
     parser.add_argument('--policy_belief_embedding_dim', type=int, default=None)

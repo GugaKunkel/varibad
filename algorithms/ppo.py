@@ -27,11 +27,7 @@ class PPO:
         self.entropy_coef = entropy_coef
         self.optimiser = optim.Adam(actor_critic.parameters(), lr=lr, eps=eps)
 
-    def update(self,
-                policy_storage,
-                compute_vae_loss=None  # function that can compute the VAE loss
-                ):
-
+    def update(self, policy_storage, compute_vae_loss):
         # -- get action values --
         advantages = policy_storage.returns[:-1] - policy_storage.value_preds[:-1]
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-5)

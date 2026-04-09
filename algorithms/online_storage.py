@@ -12,9 +12,6 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class OnlineStorage(object):
     def __init__(self, args, num_steps, num_processes, state_dim, belief_dim, hidden_size):
         self.args = args
-        self.state_dim = state_dim
-        self.belief_dim = belief_dim
-        
         self.num_steps = num_steps  # how many steps to do per update (= size of online buffer)
         self.num_processes = num_processes  # number of parallel processes
         self.step = 0  # keep track of current environment step
@@ -28,7 +25,6 @@ class OnlineStorage(object):
         self.latent_logvar = []
         
         # hidden states of RNN (necessary if we want to re-compute embeddings)
-        self.hidden_size = hidden_size
         self.hidden_states = torch.zeros(num_steps + 1, num_processes, hidden_size)
         if self.args.pass_belief_to_policy:
             self.beliefs = torch.zeros(num_steps + 1, num_processes, belief_dim)
@@ -38,11 +34,7 @@ class OnlineStorage(object):
         # rewards and end of episodes
         self.rewards_raw = torch.zeros(num_steps, num_processes, 1)
         self.rewards_normalised = torch.zeros(num_steps, num_processes, 1)
-        self.done = torch.zeros(num_steps + 1, num_processes, 1)
         self.masks = torch.ones(num_steps + 1, num_processes, 1)
-        
-        # masks that indicate whether it's a true terminal state (false) or time limit end state (true)
-        self.bad_masks = torch.ones(num_steps + 1, num_processes, 1)
         
         # actions
         self.actions = torch.zeros(num_steps, num_processes, 1, dtype=torch.long)
@@ -63,9 +55,7 @@ class OnlineStorage(object):
             self.beliefs = self.beliefs.to(device)
         self.rewards_raw = self.rewards_raw.to(device)
         self.rewards_normalised = self.rewards_normalised.to(device)
-        self.done = self.done.to(device)
         self.masks = self.masks.to(device)
-        self.bad_masks = self.bad_masks.to(device)
         self.value_preds = self.value_preds.to(device)
         self.returns = self.returns.to(device)
         self.actions = self.actions.to(device)
@@ -78,8 +68,6 @@ class OnlineStorage(object):
                 rewards_normalised,
                 value_preds,
                 masks,
-                bad_masks,
-                done,
                 hidden_states=None,
                 latent_sample=None,
                 latent_mean=None,
@@ -100,8 +88,6 @@ class OnlineStorage(object):
         else:
             self.value_preds[self.step].copy_(value_preds.detach())
         self.masks[self.step + 1].copy_(masks)
-        self.bad_masks[self.step + 1].copy_(bad_masks)
-        self.done[self.step + 1].copy_(done)
         self.step = (self.step + 1) % self.num_steps
     
     def after_update(self):
@@ -112,9 +98,7 @@ class OnlineStorage(object):
         self.latent_mean = []
         self.latent_logvar = []
         self.hidden_states[0].copy_(self.hidden_states[-1])
-        self.done[0].copy_(self.done[-1])
         self.masks[0].copy_(self.masks[-1])
-        self.bad_masks[0].copy_(self.bad_masks[-1])
         self.action_log_probs = None
     
     def compute_returns(self, next_value, gamma, tau):
@@ -136,7 +120,7 @@ class OnlineStorage(object):
                                                         self.actions)
         self.action_log_probs = action_log_probs.detach()
     
-    def feed_forward_generator(self, advantages, num_mini_batch=None):
+    def feed_forward_generator(self, advantages, num_mini_batch):
         num_steps, num_processes = self.rewards_raw.size()[0:2]
         batch_size = num_processes * num_steps
         assert batch_size >= num_mini_batch, (

@@ -6,12 +6,8 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class RolloutStorageVAE(object):
     def __init__(self, num_processes, max_trajectory_len, max_num_rollouts, state_dim, action_dim):
-        """
-        Store everything that is needed for the VAE update
-        """
+        """ Store everything that is needed for the VAE update """
         
-        self.obs_dim = state_dim
-        self.action_dim = action_dim
         self.max_buffer_size = max_num_rollouts  # maximum buffer len (number of trajectories)
         self.insert_idx = 0  # at which index we're currently inserting new data
         self.buffer_len = 0  # how much of the buffer has been filled

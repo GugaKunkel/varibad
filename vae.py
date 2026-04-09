@@ -93,7 +93,7 @@ class VaribadVAE:
         # KL(N(mu,E)||N(m,S)) = 0.5 * (log(|S|/|E|) - K + tr(S^-1 E) + (m-mu)^T S^-1 (m-mu)))
         return torch.distributions.kl.kl_divergence(q_t, q_prev).sum(dim=-1)
     
-    def compute_loss(self, latent_mean, latent_logvar, vae_next_obs, vae_actions, vae_rewards, trajectory_lens):
+    def compute_loss(self, latent_mean, latent_logvar, vae_next_obs, vae_rewards, trajectory_lens):
         """
         Computes the VAE loss for the given data.
         Batches everything together and therefore needs all trajectories to be of the same length.
@@ -108,7 +108,6 @@ class VaribadVAE:
         latent_mean = latent_mean[:max_traj_len + 1]
         latent_logvar = latent_logvar[:max_traj_len + 1]
         vae_next_obs = vae_next_obs[:max_traj_len]
-        vae_actions = vae_actions[:max_traj_len]
         vae_rewards = vae_rewards[:max_traj_len]
         
         # take one sample for each ELBO term
@@ -139,9 +138,7 @@ class VaribadVAE:
         # compute the KL term for each ELBO term of the current trajectory
         # shape: [num_elbo_terms] x [num_trajectories]
         kl_loss = self.compute_kl_loss(latent_mean, latent_logvar)
-        # sum the elbos
-        kl_loss = kl_loss.sum(dim=0)
-        # average across tasks
+        # sum the elbos and avg across tasks
         kl_loss = kl_loss.sum(dim=0).mean()
         return rew_reconstruction_loss, kl_loss
 
@@ -161,19 +158,12 @@ class VaribadVAE:
                                                         detach_every=self.args.tbptt_stepsize if hasattr(self.args, 'tbptt_stepsize') else None,
                                                         )
         rew_reconstruction_loss, kl_loss = self.compute_loss(
-            latent_mean, latent_logvar, vae_next_obs, vae_actions, vae_rewards, trajectory_lens
+            latent_mean, latent_logvar, vae_next_obs, vae_rewards, trajectory_lens
         )
         
         # VAE loss = KL loss + reward reconstruction
         # take average (this is the expectation over p(M))
-        loss = (rew_reconstruction_loss + self.args.kl_weight * kl_loss).mean()
-        
-        # make sure we can compute gradients
-        assert kl_loss.requires_grad
-        assert rew_reconstruction_loss.requires_grad
-        
-        # overall loss
-        elbo_loss = loss.mean()
+        elbo_loss = (rew_reconstruction_loss + self.args.kl_weight * kl_loss).mean()
         
         if update:
             self.optimiser_vae.zero_grad()
