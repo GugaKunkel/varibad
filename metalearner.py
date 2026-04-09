@@ -79,7 +79,6 @@ class MetaLearner:
             eps=self.args.policy_eps,
             ppo_epoch=self.args.ppo_num_epochs,
             num_mini_batch=self.args.ppo_num_minibatch,
-            use_huber_loss=self.args.ppo_use_huberloss,
             clip_param=self.args.ppo_clip_param,
         )
         return policy

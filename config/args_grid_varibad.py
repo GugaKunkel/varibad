@@ -25,7 +25,6 @@ def get_args(rest_args):
     # PPO specific
     parser.add_argument('--ppo_num_epochs', type=int, default=2, help='number of epochs per PPO update')
     parser.add_argument('--ppo_num_minibatch', type=int, default=4, help='number of minibatches to split the data')
-    parser.add_argument('--ppo_use_huberloss', type=boolean_argument, default=True, help='use huberloss instead of MSE')
     parser.add_argument('--ppo_clip_param', type=float, default=0.05, help='clamp param')
 
     # other hyperparameters

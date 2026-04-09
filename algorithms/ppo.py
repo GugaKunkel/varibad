@@ -17,7 +17,6 @@ class PPO:
                 ppo_epoch=5,
                 num_mini_batch=5,
                 eps=None,
-                use_huber_loss=True,
                 ):
         self.args = args
         self.actor_critic = actor_critic # the model
@@ -26,7 +25,6 @@ class PPO:
         self.num_mini_batch = num_mini_batch
         self.value_loss_coef = value_loss_coef
         self.entropy_coef = entropy_coef
-        self.use_huber_loss = use_huber_loss
         self.optimiser = optim.Adam(actor_critic.parameters(), lr=lr, eps=eps)
 
     def update(self,
@@ -73,14 +71,10 @@ class PPO:
                 action_loss = -torch.min(surr1, surr2).mean()
                 
                 value_pred_clipped = value_preds_batch + (values - value_preds_batch).clamp(-self.clip_param, self.clip_param)
-                if self.use_huber_loss:
-                    value_losses = F.smooth_l1_loss(values, return_batch, reduction='none')
-                    value_losses_clipped = F.smooth_l1_loss(value_pred_clipped, return_batch, reduction='none')
-                    value_loss = 0.5 * torch.max(value_losses, value_losses_clipped).mean()
-                else:
-                    value_losses = (values - return_batch).pow(2)
-                    value_losses_clipped = (value_pred_clipped - return_batch).pow(2)
-                    value_loss = 0.5 * torch.max(value_losses, value_losses_clipped).mean()
+                # use clipped Huber value loss.
+                value_losses = F.smooth_l1_loss(values, return_batch, reduction='none')
+                value_losses_clipped = F.smooth_l1_loss(value_pred_clipped, return_batch, reduction='none')
+                value_loss = 0.5 * torch.max(value_losses, value_losses_clipped).mean()
 
                 self.optimiser.zero_grad()
                 loss = value_loss * self.value_loss_coef + action_loss - dist_entropy * self.entropy_coef
