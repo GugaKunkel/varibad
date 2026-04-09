@@ -10,7 +10,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 class OnlineStorage(object):
-    def __init__(self, args, num_steps, num_processes, state_dim, belief_dim, action_space, hidden_size):
+    def __init__(self, args, num_steps, num_processes, state_dim, belief_dim, hidden_size):
         self.args = args
         self.state_dim = state_dim
         self.belief_dim = belief_dim

@@ -11,16 +11,8 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class TBLogger:
     def __init__(self, args, exp_label):
         self.output_name = exp_label + '_' + str(args.seed) + '_' + datetime.datetime.now().strftime('%m-%d_%H-%M-%S')
-        try:
-            log_dir = args.results_log_dir
-        except AttributeError:
-            log_dir = args['results_log_dir']
-
-        if log_dir is None:
-            dir_path = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
-            dir_path = os.path.join(dir_path, 'logs')
-        else:
-            dir_path = log_dir
+        dir_path = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
+        dir_path = os.path.join(dir_path, 'logs')
 
         if not os.path.exists(dir_path):
             try:

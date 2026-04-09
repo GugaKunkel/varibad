@@ -3,7 +3,6 @@ Based on https://github.com/ikostrikov/pytorch-a2c-ppo-acktr
 """
 import torch
 import torch.nn as nn
-
 from utils import helpers as utl
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -11,16 +10,16 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class Policy(nn.Module):
     def __init__(self,
-                 args,
-                 # input
-                 pass_belief_to_policy,
-                 dim_state,
-                 dim_latent,
-                 dim_belief,
-                 hidden_layers,
-                 # output
-                 action_space
-                 ):
+                args,
+                # input
+                pass_belief_to_policy,
+                dim_state,
+                dim_latent,
+                dim_belief,
+                hidden_layers,
+                # output
+                action_space
+                ):
         """
         The policy can get any of these as input:
         - state (given by environment)
@@ -53,32 +52,29 @@ class Policy(nn.Module):
         hidden_layers = [int(h) for h in hidden_layers]
         self.actor_layers = nn.ModuleList()
         self.critic_layers = nn.ModuleList()
-        for i in range(len(hidden_layers)):
-            fc = init_(nn.Linear(curr_input_dim, hidden_layers[i]))
-            self.actor_layers.append(fc)
-            fc = init_(nn.Linear(curr_input_dim, hidden_layers[i]))
-            self.critic_layers.append(fc)
-            curr_input_dim = hidden_layers[i]
-        self.critic_linear = nn.Linear(hidden_layers[-1], 1)
+        in_dim = curr_input_dim
+        for out_dim in hidden_layers:
+            self.actor_layers.append(init_(nn.Linear(in_dim, out_dim)))
+            self.critic_layers.append(init_(nn.Linear(in_dim, out_dim)))
+            in_dim = out_dim
+        self.critic_linear = nn.Linear(in_dim, 1)
 
         # output distributions of the policy
         num_outputs = action_space.n
         self.dist = Categorical(hidden_layers[-1], num_outputs)
-
+    
     def forward_actor(self, inputs):
         h = inputs
-        for i in range(len(self.actor_layers)):
-            h = self.actor_layers[i](h)
-            h = self.activation_function(h)
+        for layer in self.actor_layers:
+            h = self.activation_function(layer(h))
         return h
-
+    
     def forward_critic(self, inputs):
         h = inputs
-        for i in range(len(self.critic_layers)):
-            h = self.critic_layers[i](h)
-            h = self.activation_function(h)
+        for layer in self.critic_layers:
+            h = self.activation_function(layer(h))
         return h
-
+    
     def forward(self, state, latent, belief):
         # handle inputs (normalise + embed)
         state = (state - self.state_rms.mean) / torch.sqrt(self.state_rms.var + 1e-8)
@@ -100,35 +96,31 @@ class Policy(nn.Module):
         return self.critic_linear(hidden_critic), hidden_actor
 
     def act(self, state, latent, belief, deterministic=False):
-        """
-        Returns the (raw) actions and their value.
-        """
+        """ Returns the (raw) actions and their value. """
         value, actor_features = self.forward(state=state, latent=latent, belief=belief)
         dist = self.dist(actor_features)
         if deterministic:
             action = dist.mode()
         else:
             action = dist.sample()
-
         return value, action
-
+    
     def get_value(self, state, latent, belief):
         value, _ = self.forward(state, latent, belief)
         return value
-
+    
     def update_rms(self, policy_storage):
         """ Update normalisation parameters for inputs with current data """
         self.state_rms.update(policy_storage.prev_state[:-1])
         latent = utl.get_latent_for_policy(torch.cat(policy_storage.latent_samples[:-1]),
-                                           torch.cat(policy_storage.latent_mean[:-1]),
-                                           torch.cat(policy_storage.latent_logvar[:-1])
-                                           )
+                                            torch.cat(policy_storage.latent_mean[:-1]),
+                                            torch.cat(policy_storage.latent_logvar[:-1])
+                                            )
         self.latent_rms.update(latent)
         if self.pass_belief_to_policy:
             self.belief_rms.update(policy_storage.beliefs[:-1])
-
+    
     def evaluate_actions(self, state, latent, belief, action):
-
         value, actor_features = self.forward(state, latent, belief)
         dist = self.dist(actor_features)
         action_log_probs = dist.log_probs(action)
@@ -155,14 +147,9 @@ def init(module, weight_init, bias_init, gain=1.0):
 class Categorical(nn.Module):
     def __init__(self, num_inputs, num_outputs):
         super(Categorical, self).__init__()
-
-        init_ = lambda m: init(m,
-                               nn.init.orthogonal_,
-                               lambda x: nn.init.constant_(x, 0),
-                               gain=0.01)
-
+        init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.constant_(x, 0), gain=0.01)
         self.linear = init_(nn.Linear(num_inputs, num_outputs))
-
+    
     def forward(self, x):
         x = self.linear(x)
         return FixedCategorical(logits=x)

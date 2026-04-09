@@ -22,10 +22,6 @@ def get_args(rest_args):
     parser.add_argument('--policy_latent_embedding_dim', type=int, default=16)
     parser.add_argument('--policy_belief_embedding_dim', type=int, default=None)
 
-    # network
-    parser.add_argument('--policy_layers', nargs='+', default=[32])
-    parser.add_argument('--policy_initialisation', type=str, default='orthogonal', help='normc/orthogonal')
-
     # PPO specific
     parser.add_argument('--ppo_num_epochs', type=int, default=2, help='number of epochs per PPO update')
     parser.add_argument('--ppo_num_minibatch', type=int, default=4, help='number of minibatches to split the data')
@@ -35,6 +31,7 @@ def get_args(rest_args):
     # other hyperparameters
     parser.add_argument('--lr_policy', type=float, default=0.0007, help='learning rate (default: 7e-4)')
     parser.add_argument('--num_processes', type=int, default=16, help='how many training CPU processes / parallel environments to use (default: 16)')
+    parser.add_argument('--policy_layers', nargs='+', default=[32])
     parser.add_argument('--policy_num_steps', type=int, default=60, help='number of env steps to do (per process) before updating')
     parser.add_argument('--policy_eps', type=float, default=1e-8, help='optimizer epsilon for ppo')
     parser.add_argument('--policy_value_loss_coef', type=float, default=0.5, help='value loss coefficient')
@@ -85,7 +82,6 @@ def get_args(rest_args):
     parser.add_argument('--save_intermediate_models', type=boolean_argument, default=False, help='save all models')
     parser.add_argument('--eval_interval', type=int, default=500, help='eval interval, one eval per n updates')
     parser.add_argument('--vis_interval', type=int, default=500, help='visualisation interval, one eval per n updates')
-    parser.add_argument('--results_log_dir', default=None, help='directory to save results (None uses ./logs)')
 
     # general settings
     parser.add_argument('--seed',  nargs='+', type=int, default=[73])

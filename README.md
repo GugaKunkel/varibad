@@ -54,8 +54,7 @@ which will use hyperparameters from `config/gridworld/args_grid_varibad.py`.
 
 The simplified repo currently supports the `gridworld_varibad` entry point in `main.py`.
 
-The results will by default be saved at `./logs`, 
-but you can also pass a flag with an alternative directory using `--results_log_dir /path/to/dir`.
+The results will by default be saved at `./logs`
 
 The default configs are in the `config/` folder. 
 You can overwrite any default hyperparameters using command line arguments.

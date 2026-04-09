@@ -33,10 +33,7 @@ class RNNEncoder(nn.Module):
         self.reward_encoder = utl.FeatureExtractor(reward_size, reward_embed_size, F.relu)
 
         curr_input_dim = action_embed_dim + state_embed_dim + reward_embed_size
-        self.gru = nn.GRU(input_size=curr_input_dim,
-                          hidden_size=hidden_size,
-                          num_layers=1,
-                          )
+        self.gru = nn.GRU(input_size=curr_input_dim, hidden_size=hidden_size)
 
         for name, param in self.gru.named_parameters():
             if 'bias' in name:

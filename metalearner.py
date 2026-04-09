@@ -54,7 +54,6 @@ class MetaLearner:
                                             num_processes=self.args.num_processes,
                                             state_dim=self.args.state_dim,
                                             belief_dim=self.args.belief_dim,
-                                            action_space=self.args.action_space,
                                             hidden_size=self.args.encoder_gru_hidden_size,
                                             )
         self.policy = self.initialise_policy()

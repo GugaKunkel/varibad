@@ -8,17 +8,17 @@ from utils import helpers as utl
 
 class PPO:
     def __init__(self,
-                 args,
-                 actor_critic,
-                 value_loss_coef,
-                 entropy_coef,
-                 lr=None,
-                 clip_param=0.2,
-                 ppo_epoch=5,
-                 num_mini_batch=5,
-                 eps=None,
-                 use_huber_loss=True,
-                 ):
+                args,
+                actor_critic,
+                value_loss_coef,
+                entropy_coef,
+                lr=None,
+                clip_param=0.2,
+                ppo_epoch=5,
+                num_mini_batch=5,
+                eps=None,
+                use_huber_loss=True,
+                ):
         self.args = args
         self.actor_critic = actor_critic # the model
         self.clip_param = clip_param
@@ -30,9 +30,9 @@ class PPO:
         self.optimiser = optim.Adam(actor_critic.parameters(), lr=lr, eps=eps)
 
     def update(self,
-               policy_storage,
-               compute_vae_loss=None  # function that can compute the VAE loss
-               ):
+                policy_storage,
+                compute_vae_loss=None  # function that can compute the VAE loss
+                ):
 
         # -- get action values --
         advantages = policy_storage.returns[:-1] - policy_storage.value_preds[:-1]
@@ -63,25 +63,16 @@ class PPO:
                 latent_mean_batch = latent_mean_batch.detach()
                 latent_logvar_batch = latent_logvar_batch.detach()
 
-                latent_batch = utl.get_latent_for_policy(latent_sample=latent_sample_batch,
-                                                         latent_mean=latent_mean_batch,
-                                                         latent_logvar=latent_logvar_batch
-                                                         )
-
+                latent_batch = utl.get_latent_for_policy(latent_sample=latent_sample_batch, latent_mean=latent_mean_batch, latent_logvar=latent_logvar_batch)
+                
                 # Reshape to do in a single forward pass for all steps
-                values, action_log_probs, dist_entropy = \
-                    self.actor_critic.evaluate_actions(state=state_batch, latent=latent_batch,
-                                                       belief=belief_batch,
-                                                       action=actions_batch)
-
+                values, action_log_probs, dist_entropy = self.actor_critic.evaluate_actions(state=state_batch, latent=latent_batch, belief=belief_batch, action=actions_batch)
                 ratio = torch.exp(action_log_probs - old_action_log_probs_batch)
                 surr1 = ratio * adv_targ
                 surr2 = torch.clamp(ratio, 1.0 - self.clip_param, 1.0 + self.clip_param) * adv_targ
                 action_loss = -torch.min(surr1, surr2).mean()
-
-                # Simplification: clipped value loss is always enabled.
-                value_pred_clipped = value_preds_batch + (values - value_preds_batch).clamp(-self.clip_param,
-                                                                                            self.clip_param)
+                
+                value_pred_clipped = value_preds_batch + (values - value_preds_batch).clamp(-self.clip_param, self.clip_param)
                 if self.use_huber_loss:
                     value_losses = F.smooth_l1_loss(values, return_batch, reduction='none')
                     value_losses_clipped = F.smooth_l1_loss(value_pred_clipped, return_batch, reduction='none')

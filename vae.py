@@ -47,7 +47,6 @@ class VaribadVAE:
         # initialise rollout storage for the VAE update (this differs from the data that the on-policy RL algorithm uses)
         self.rollout_storage = RolloutStorageVAE(num_processes=self.args.num_processes,
                                                 max_trajectory_len=self.args.max_trajectory_len,
-                                                zero_pad=True,
                                                 max_num_rollouts=self.args.size_vae_buffer,
                                                 state_dim=self.args.state_dim,
                                                 action_dim=self.args.action_dim
@@ -82,22 +81,18 @@ class VaribadVAE:
             return loss_rew
     
     def compute_kl_loss(self, latent_mean, latent_logvar):
-        # -- KL divergence
-        gauss_dim = latent_mean.shape[-1]
-        # add the gaussian prior
-        all_means = torch.cat((torch.zeros(1, *latent_mean.shape[1:]).to(device), latent_mean))
-        all_logvars = torch.cat((torch.zeros(1, *latent_logvar.shape[1:]).to(device), latent_logvar))
+        prior_mean = torch.zeros_like(latent_mean[:1])
+        prior_logvar = torch.zeros_like(latent_logvar[:1])
+        
+        all_means = torch.cat([prior_mean, latent_mean], dim=0)
+        all_logvars = torch.cat([prior_logvar, latent_logvar], dim=0)
+        
+        q_t = torch.distributions.Normal(all_means[1:], torch.exp(0.5 * all_logvars[1:]))
+        q_prev = torch.distributions.Normal(all_means[:-1], torch.exp(0.5 * all_logvars[:-1]))
         # https://arxiv.org/pdf/1811.09975.pdf
         # KL(N(mu,E)||N(m,S)) = 0.5 * (log(|S|/|E|) - K + tr(S^-1 E) + (m-mu)^T S^-1 (m-mu)))
-        mu = all_means[1:]
-        m = all_means[:-1]
-        logE = all_logvars[1:]
-        logS = all_logvars[:-1]
-        kl_divergences = 0.5 * (torch.sum(logS, dim=-1) - torch.sum(logE, dim=-1) - gauss_dim + torch.sum(
-            1 / torch.exp(logS) * torch.exp(logE), dim=-1) + ((m - mu) / torch.exp(logS) * (m - mu)).sum(dim=-1))
-        
-        return kl_divergences
-
+        return torch.distributions.kl.kl_divergence(q_t, q_prev).sum(dim=-1)
+    
     def compute_loss(self, latent_mean, latent_logvar, vae_next_obs, vae_actions, vae_rewards, trajectory_lens):
         """
         Computes the VAE loss for the given data.
@@ -134,9 +129,9 @@ class VaribadVAE:
         # compute reconstruction loss for this trajectory (for each timestep that was encoded, decode everything and sum it up)
         # shape: [num_elbo_terms] x [num_reconstruction_terms] x [num_trajectories]
         rew_reconstruction_loss = self.compute_rew_reconstruction_loss(dec_embedding, dec_next_obs, dec_rewards)
-        # We always sum ELBO terms here; if training is poor, try changing to averaging ELBO terms.
+        # We sum ELBO terms here; if training is poor, try changing to averaging ELBO terms.
         rew_reconstruction_loss = rew_reconstruction_loss.sum(dim=0)
-        # We always sum reconstruction terms here; if training is poor, try changing to averaging reconstruction terms.
+        # We sum reconstruction terms here; if training is poor, try changing to averaging reconstruction terms.
         rew_reconstruction_loss = rew_reconstruction_loss.sum(dim=0)
         # average across tasks
         rew_reconstruction_loss = rew_reconstruction_loss.mean()
@@ -144,10 +139,10 @@ class VaribadVAE:
         # compute the KL term for each ELBO term of the current trajectory
         # shape: [num_elbo_terms] x [num_trajectories]
         kl_loss = self.compute_kl_loss(latent_mean, latent_logvar)
+        # sum the elbos
         kl_loss = kl_loss.sum(dim=0)
         # average across tasks
         kl_loss = kl_loss.sum(dim=0).mean()
-        
         return rew_reconstruction_loss, kl_loss
 
     def compute_vae_loss(self, update=False, pretrain_index=None):
