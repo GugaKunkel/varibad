@@ -365,7 +365,7 @@ def plot_vae_loss(latent_means,
         rew_pred_std.append(rew_pred.std())
 
     # kl term
-    vae_kl_term = compute_kl_loss(latent_means, latent_logvars, None)
+    vae_kl_term = compute_kl_loss(latent_means, latent_logvars)
 
     # --- plot KL term ---
 

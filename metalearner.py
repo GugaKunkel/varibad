@@ -53,7 +53,6 @@ class MetaLearner:
                                             num_steps=self.args.policy_num_steps,
                                             num_processes=self.args.num_processes,
                                             state_dim=self.args.state_dim,
-                                            latent_dim=self.args.latent_dim,
                                             belief_dim=self.args.belief_dim,
                                             action_space=self.args.action_space,
                                             hidden_size=self.args.encoder_gru_hidden_size,
@@ -152,9 +151,6 @@ class MetaLearner:
                                                 rew_raw.clone(),
                                                 done.clone())
                 
-                # add the obs before reset to the policy storage
-                self.policy_storage.next_state[step] = next_state.clone()
-                
                 # reset environments that are done
                 done_indices = np.argwhere(done.cpu().flatten()).flatten()
                 if len(done_indices) > 0:
@@ -243,11 +239,7 @@ class MetaLearner:
             
             # bootstrap next value prediction
             with torch.no_grad():
-                next_value = self.get_value(state=state,
-                                            belief=belief,
-                                            latent_sample=latent_sample,
-                                            latent_mean=latent_mean,
-                                            latent_logvar=latent_logvar)
+                next_value = self.get_value(state=state, belief=belief, latent_sample=latent_sample, latent_mean=latent_mean, latent_logvar=latent_logvar)
             
             # Use generalized advantage estimation (GAE) for ppo policy returns.
             self.policy_storage.compute_returns(next_value, self.args.policy_gamma, self.args.policy_tau)
