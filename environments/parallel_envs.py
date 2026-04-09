@@ -10,12 +10,11 @@ from environments.env_utils.vec_env import VecEnvWrapper
 from environments.env_utils.vec_env.dummy_vec_env import DummyVecEnv
 from environments.env_utils.vec_env.subproc_vec_env import SubprocVecEnv
 from environments.env_utils.vec_env.vec_normalize import VecNormalize
-from environments.wrappers import TimeLimitMask, VariBadWrapper
+from environments.wrappers import VariBadWrapper
 
 
 def make_env(env_id, seed, rank, episodes_per_task, tasks, add_done_info, **kwargs):
     def _thunk():
-
         env = gym.make(env_id, **kwargs)
         if tasks is not None:
             env.unwrapped.reset_task = lambda x: env.unwrapped.set_task(random.choice(tasks))
@@ -28,28 +27,25 @@ def make_env(env_id, seed, rank, episodes_per_task, tasks, add_done_info, **kwar
                 random.seed(env_seed)
                 np.random.seed(env_seed)
                 torch.manual_seed(env_seed)
-        if str(env.__class__.__name__).find('TimeLimit') >= 0:
-            env = TimeLimitMask(env)
         env = VariBadWrapper(env=env, episodes_per_task=episodes_per_task, add_done_info=add_done_info)
         return env
-
     return _thunk
 
 
 def make_vec_envs(env_name, seed, num_processes, gamma,
-                  device, episodes_per_task,
-                  normalise_rew, ret_rms, tasks,
-                  rank_offset=0,
-                  add_done_info=None,
-                  **kwargs):
+                device, episodes_per_task,
+                normalise_rew, ret_rms, tasks,
+                rank_offset=0,
+                add_done_info=None,
+                **kwargs):
     """
     :param ret_rms: running return and std for rewards
     """
     envs = [make_env(env_id=env_name, seed=seed, rank=rank_offset + i,
-                     episodes_per_task=episodes_per_task,
-                     tasks=tasks,
-                     add_done_info=add_done_info,
-                     **kwargs)
+                    episodes_per_task=episodes_per_task,
+                    tasks=tasks,
+                    add_done_info=add_done_info,
+                    **kwargs)
             for i in range(num_processes)]
     
     # This does stuff to run multiple envs in parallel (scary code)
@@ -57,12 +53,10 @@ def make_vec_envs(env_name, seed, num_processes, gamma,
         envs = SubprocVecEnv(envs)
     else:
         envs = DummyVecEnv(envs)
-
+        
     if len(envs.observation_space.shape) == 1:
         envs = VecNormalize(envs, normalise_rew=normalise_rew, ret_rms=ret_rms, gamma=gamma)
-
     envs = VecPyTorch(envs, device)
-
     return envs
 
 
@@ -71,7 +65,7 @@ class VecPyTorch(VecEnvWrapper):
         """Return only every `skip`-th frame"""
         super(VecPyTorch, self).__init__(venv)
         self.device = device
-
+    
     def reset_mdp(self, index=None):
         obs = self.venv.reset_mdp(index=index)
         if isinstance(obs, list):
@@ -79,7 +73,7 @@ class VecPyTorch(VecEnvWrapper):
         else:
             obs = torch.from_numpy(obs).float().to(self.device)
         return obs
-
+    
     def reset(self, index=None, task=None):
         if task is not None:
             assert isinstance(task, list)
@@ -89,11 +83,11 @@ class VecPyTorch(VecEnvWrapper):
         else:
             state = torch.from_numpy(state).float().to(self.device)
         return state
-
+    
     def step_async(self, actions):
         actions = actions.cpu().numpy()
         self.venv.step_async(actions)
-
+    
     def step_wait(self):
         state, reward, terminated, truncated, info = self.venv.step_wait()
         if isinstance(state, list):  # raw + normalised
@@ -105,7 +99,7 @@ class VecPyTorch(VecEnvWrapper):
         else:
             reward = torch.from_numpy(reward).unsqueeze(dim=1).float().to(self.device)
         return state, reward, terminated, truncated, info
-
+    
     def __getattr__(self, attr):
         """ If env does not have the attribute then call the attribute in the wrapped_env """
 

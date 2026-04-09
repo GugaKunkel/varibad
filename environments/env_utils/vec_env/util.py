@@ -32,7 +32,7 @@ def obs_space_info(obs_space):
     Get dict-structured information about a gym.Space.
 
     Returns:
-      A tuple (keys, shapes, dtypes):
+        A tuple (keys, shapes, dtypes):
         keys: a list of dict keys.
         shapes: a dict mapping keys to shapes.
         dtypes: a dict mapping keys to dtypes.

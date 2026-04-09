@@ -19,14 +19,14 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class GridNavi(gym.Env):
     def __init__(self, num_cells=5, num_steps=15):
         super(GridNavi, self).__init__()
-
         self.seed()
         self.num_cells = num_cells
         self.num_states = num_cells ** 2
-
+        self.num_tasks = self.num_states
+        
         self._max_episode_steps = num_steps
         self.step_count = 0
-
+        
         self.observation_space = spaces.Box(
             low=np.zeros(2, dtype=np.float32),
             high=np.full(2, self.num_cells - 1, dtype=np.float32),
@@ -35,34 +35,31 @@ class GridNavi(gym.Env):
         self.action_space = spaces.Discrete(5)  # noop, up, right, down, left
         self.task_dim = 2
         self.belief_dim = 25
-
+        
         # possible starting states
         self.starting_state = (0.0, 0.0)
-
+        
         # goals can be anywhere except on possible starting states and immediately around it
         self.possible_goals = list(itertools.product(range(num_cells), repeat=2))
         self.possible_goals.remove((0, 0))
         self.possible_goals.remove((0, 1))
         self.possible_goals.remove((1, 1))
         self.possible_goals.remove((1, 0))
-
-        self.task_dim = 2
-        self.num_tasks = self.num_states
-
+        
         # reset the environment state
         self._env_state = np.array(self.starting_state, dtype=np.float32)
         # reset the goal
         self._goal = self.reset_task()
         # reset the belief
         self._belief_state = self._reset_belief()
-
+    
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         seed32 = int(seed) % (2 ** 32)
         random.seed(seed32)
         np.random.seed(seed32)
         return [seed]
-
+    
     def reset_task(self, task=None):
         if task is None:
             self._goal = np.array(random.choice(self.possible_goals))
@@ -70,18 +67,17 @@ class GridNavi(gym.Env):
             self._goal = np.array(task)
         self._reset_belief()
         return self._goal
-
+    
     def _reset_belief(self):
         self._belief_state = np.zeros((self.num_cells ** 2))
         for pg in self.possible_goals:
             idx = self.task_to_id(np.array(pg))
             self._belief_state[idx] = 1.0 / len(self.possible_goals)
         return self._belief_state
-
+    
     def update_belief(self, state, action):
-
         on_goal = state[0] == self._goal[0] and state[1] == self._goal[1]
-
+        
         # hint
         if action == 5 or on_goal:
             possible_goals = self.possible_goals.copy()
@@ -94,29 +90,27 @@ class GridNavi(gym.Env):
             self._belief_state[self.task_to_id(state)] = 0
             self._belief_state = np.ceil(self._belief_state)
             self._belief_state /= sum(self._belief_state)
-
+        
         assert (1-sum(self._belief_state)) < 1e-4
-
         return self._belief_state
-
+    
     def get_task(self):
         return self._goal.copy()
-
+    
     def get_belief(self):
         return self._belief_state.copy()
-
+    
     def reset(self, seed=None, options=None):
         if seed is not None:
             self.seed(seed)
         self.step_count = 0
         self._env_state = np.array(self.starting_state, dtype=np.float32)
         return self._env_state.copy(), {}
-
+    
     def state_transition(self, action):
         """
         Moving the agent between states
         """
-
         if action == 1:  # up
             self._env_state[1] = min([self._env_state[1] + 1, self.num_cells - 1])
         elif action == 2:  # right
@@ -125,42 +119,39 @@ class GridNavi(gym.Env):
             self._env_state[1] = max([self._env_state[1] - 1, 0])
         elif action == 4:  # left
             self._env_state[0] = max([self._env_state[0] - 1, 0])
-
         return self._env_state.astype(np.float32, copy=False)
-
+    
     def step(self, action):
-
         if isinstance(action, np.ndarray) and action.ndim == 1:
             action = action[0]
         assert self.action_space.contains(action)
-
+        
         terminated = False
         truncated = False
-
+        
         # perform state transition
         state = self.state_transition(action)
-
+        
         # check if maximum step limit is reached
         self.step_count += 1
         if self.step_count >= self._max_episode_steps:
             terminated = True
-
+        
         # compute reward
         if self._env_state[0] == self._goal[0] and self._env_state[1] == self._goal[1]:
             reward = 1.0
         else:
             reward = -0.1
-
+        
         # update ground-truth belief
         self.update_belief(self._env_state, action)
-
         task = self.get_task()
         task_id = self.task_to_id(task)
         info = {'task': task,
                 'task_id': task_id,
                 'belief': self.get_belief()}
         return state.astype(np.float32, copy=False), reward, terminated, truncated, info
-
+    
     def task_to_id(self, goals):
         if isinstance(goals, list) or isinstance(goals, tuple):
             goals = np.array(goals)
@@ -170,19 +161,18 @@ class GridNavi(gym.Env):
             0, self.num_cells ** 2, device=goals.device
         ).long().reshape((self.num_cells, self.num_cells))
         goals = goals.long()
-
+        
         if goals.dim() == 1:
             goals = goals.unsqueeze(0)
-
+        
         goal_shape = goals.shape
         if len(goal_shape) > 2:
             goals = goals.reshape(-1, goals.shape[-1])
-
+        
         classes = mat[goals[:, 0], goals[:, 1]]
         classes = classes.reshape(goal_shape[:-1])
-
         return classes
-
+    
     @staticmethod
     def visualise_behaviour(env,
                             args,
