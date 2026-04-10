@@ -7,8 +7,6 @@ from metalearner import MetaLearner
 
 def main():
     args = args_grid_varibad.get_args(None)
-
-    # begin training (loop through all passed seeds)
     seed_list = [args.seed] if isinstance(args.seed, int) else args.seed
     for seed in seed_list:
         print('training', seed)

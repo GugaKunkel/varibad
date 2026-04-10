@@ -48,7 +48,7 @@ class MetaLearner:
         self.args.action_dim = 1
         
         # initialise VAE and policy
-        self.vae = VaribadVAE(self.args, self.logger, lambda: self.iter_idx)
+        self.vae = VaribadVAE(self.args, lambda: self.iter_idx)
         self.policy_storage = OnlineStorage(args=self.args,
                                             num_steps=self.args.policy_num_steps,
                                             num_processes=self.args.num_processes,
@@ -262,8 +262,6 @@ class MetaLearner:
                                             ret_rms=ret_rms,
                                             encoder=self.vae.encoder,
                                             reward_decoder=self.vae.reward_decoder,
-                                            compute_rew_reconstruction_loss=self.vae.compute_rew_reconstruction_loss,
-                                            compute_kl_loss=self.vae.compute_kl_loss,
                                             tasks=None,
                                         )
         

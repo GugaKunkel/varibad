@@ -19,9 +19,8 @@ class VaribadVAE:
     - can update the VAE (encoder+decoder)
     """
     
-    def __init__(self, args, logger, get_iter_idx):
+    def __init__(self, args, get_iter_idx):
         self.args = args
-        self.logger = logger
         self.get_iter_idx = get_iter_idx
         
         # initialise the encoder
@@ -176,16 +175,4 @@ class VaribadVAE:
             # update
             self.optimiser_vae.step()
         
-        self.log(elbo_loss, rew_reconstruction_loss, kl_loss, pretrain_index)
         return elbo_loss
-    
-    def log(self, elbo_loss, rew_reconstruction_loss, kl_loss, pretrain_index=None):
-        if pretrain_index is None:
-            curr_iter_idx = self.get_iter_idx()
-        else:
-            curr_iter_idx = - self.args.pretrain_len * self.args.num_vae_updates_per_pretrain + pretrain_index
-        
-        if curr_iter_idx % self.args.log_interval == 0:
-            self.logger.add('vae_losses/reward_reconstr_err', rew_reconstruction_loss.mean(), curr_iter_idx)
-            self.logger.add('vae_losses/kl', kl_loss.mean(), curr_iter_idx)
-            self.logger.add('vae_losses/sum', elbo_loss, curr_iter_idx)

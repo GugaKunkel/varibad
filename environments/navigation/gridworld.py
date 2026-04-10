@@ -411,12 +411,10 @@ def plot_bb(env, args, episode_all_obs, episode_goals, reward_decoder,
 
             if episode_latent_means is not None:
                 # visualise belief in env
-                rm, rv = compute_beliefs(env,
-                                         args,
+                rm, rv = compute_beliefs(args,
                                          reward_decoder,
                                          curr_means[-1],
-                                         curr_logvars[-1],
-                                         curr_goal)
+                                         curr_logvars[-1])
                 rew_pred_means[episode_idx].append(rm)
                 rew_pred_vars[episode_idx].append(rv)
                 plot_belief(env, rm)
@@ -477,7 +475,7 @@ def plot_behaviour(env, observations, goal):
     plt.ylim([0, num_cells])
 
 
-def compute_beliefs(env, args, reward_decoder, latent_mean, latent_logvar, goal):
+def compute_beliefs(args, reward_decoder, latent_mean, latent_logvar):
     # take several samples from the latent distribution
     samples = torch.distributions.Normal(
         latent_mean.view(-1),

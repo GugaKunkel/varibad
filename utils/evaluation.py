@@ -104,8 +104,6 @@ def visualise_behaviour(args,
                         tasks,
                         encoder=None,
                         reward_decoder=None,
-                        compute_rew_reconstruction_loss=None,
-                        compute_kl_loss=None,
                         ):
     # initialise environment
     env = make_vec_envs(env_name=args.env_name,
@@ -136,25 +134,16 @@ def visualise_behaviour(args,
     else:
         traj = get_test_rollout(args, env, policy, encoder)
 
-    latent_means, latent_logvars, episode_prev_obs, episode_next_obs, episode_actions, episode_rewards, episode_returns = traj
+    if len(traj) == 7:
+        latent_means, latent_logvars, episode_prev_obs, episode_next_obs, episode_actions, episode_rewards, _ = traj
+    else:
+        latent_means, latent_logvars, episode_prev_obs, episode_next_obs, episode_actions, episode_rewards = traj
 
     if latent_means is not None:
         plot_latents(latent_means, latent_logvars,
                      image_folder=image_folder,
                      iter_idx=iter_idx
                      )
-
-        plot_vae_loss(latent_means,
-                      latent_logvars,
-                      episode_prev_obs,
-                      episode_next_obs,
-                      episode_actions,
-                      episode_rewards,
-                      image_folder=image_folder,
-                      iter_idx=iter_idx,
-                      compute_rew_reconstruction_loss=compute_rew_reconstruction_loss,
-                      compute_kl_loss=compute_kl_loss,
-                      )
 
     env.close()
 
@@ -169,7 +158,6 @@ def get_test_rollout(args, env, policy, encoder=None):
     episode_actions = [[] for _ in range(num_episodes)]
     episode_rewards = [[] for _ in range(num_episodes)]
 
-    episode_returns = []
     episode_lengths = []
 
     if encoder is not None:
@@ -188,9 +176,6 @@ def get_test_rollout(args, env, policy, encoder=None):
     state = state.reshape((1, -1)).to(device)
 
     for episode_idx in range(num_episodes):
-
-        curr_rollout_rew = []
-
         if encoder is not None:
             if episode_idx == 0:
                 # reset to prior
@@ -236,8 +221,6 @@ def get_test_rollout(args, env, policy, encoder=None):
 
             if infos[0]['done_mdp']:
                 break
-
-        episode_returns.append(sum(curr_rollout_rew))
         episode_lengths.append(step_idx)
 
     # clean up
@@ -250,9 +233,7 @@ def get_test_rollout(args, env, policy, encoder=None):
     episode_actions = [torch.cat(e) for e in episode_actions]
     episode_rewards = [torch.cat(r) for r in episode_rewards]
 
-    return episode_latent_means, episode_latent_logvars, \
-           episode_prev_obs, episode_next_obs, episode_actions, episode_rewards, \
-           episode_returns
+    return episode_latent_means, episode_latent_logvars, episode_prev_obs, episode_next_obs, episode_actions, episode_rewards
 
 
 def plot_latents(latent_means,
@@ -298,130 +279,6 @@ def plot_latents(latent_means,
     plt.tight_layout()
     if image_folder is not None:
         plt.savefig('{}/{}_latents'.format(image_folder, iter_idx))
-        plt.close()
-    else:
-        plt.show()
-
-
-def plot_vae_loss(latent_means,
-                  latent_logvars,
-                  prev_obs,
-                  next_obs,
-                  actions,
-                  rewards,
-                  image_folder,
-                  iter_idx,
-                  compute_rew_reconstruction_loss,
-                  compute_kl_loss
-                  ):
-    num_rollouts = len(latent_means)
-    num_episode_steps = len(latent_means[0])
-    num_samples = 10  # how many samples to use to get an average/std ELBO loss
-
-    latent_means = torch.cat(latent_means)
-    latent_logvars = torch.cat(latent_logvars)
-
-    prev_obs = torch.cat(prev_obs).to(device)
-    next_obs = torch.cat(next_obs).to(device)
-    actions = torch.cat(actions).to(device)
-    rewards = torch.cat(rewards).to(device)
-
-    # - we will try to make predictions for each tuple in trajectory, hence we need to expand the targets
-    prev_obs = prev_obs.unsqueeze(0).expand(num_samples, *prev_obs.shape).to(device)
-    next_obs = next_obs.unsqueeze(0).expand(num_samples, *next_obs.shape).to(device)
-    actions = actions.unsqueeze(0).expand(num_samples, *actions.shape).to(device)
-    rewards = rewards.unsqueeze(0).expand(num_samples, *rewards.shape).to(device)
-
-    rew_reconstr_mean = []
-    rew_reconstr_std = []
-    rew_pred_std = []
-
-    # compute the sum of ELBO_t's by looping through (trajectory length + prior)
-    for i in range(len(latent_means)):
-
-        curr_latent_mean = latent_means[i]
-        curr_latent_logvar = latent_logvars[i]
-
-        # compute the reconstruction loss
-        # take several samples from the latent distribution
-        latent_samples = torch.distributions.Normal(
-            curr_latent_mean.view(-1),
-            torch.exp(0.5 * curr_latent_logvar.view(-1))
-        ).rsample((num_samples,))
-
-        # expand: each latent sample will be used to make predictions for the entire trajectory
-        len_traj = prev_obs.shape[1]
-
-        latent_samples = latent_samples.unsqueeze(1).expand(num_samples, len_traj, latent_samples.shape[-1])
-
-        loss_rew, rew_pred = compute_rew_reconstruction_loss(latent_samples, next_obs, rewards, return_predictions=True)
-        # sum along length of trajectory
-        loss_rew = loss_rew.sum(dim=1)
-        rew_pred = rew_pred.sum(dim=1)
-
-        # average/std across the different samples
-        rew_reconstr_mean.append(loss_rew.mean())
-        rew_reconstr_std.append(loss_rew.std())
-        rew_pred_std.append(rew_pred.std())
-
-    # kl term
-    vae_kl_term = compute_kl_loss(latent_means, latent_logvars)
-
-    # --- plot KL term ---
-
-    x = range(len(vae_kl_term))
-
-    plt.plot(x, vae_kl_term.cpu().detach().numpy(), 'b-')
-    vae_kl_term = vae_kl_term.cpu()
-    for tj in np.cumsum([0, *[num_episode_steps for _ in range(num_rollouts)]]):
-        span = vae_kl_term.max() - vae_kl_term.min()
-        plt.plot([tj + 0.5, tj + 0.5],
-                 [vae_kl_term.min() - span * 0.05, vae_kl_term.max() + span * 0.05],
-                 'k--', alpha=0.5)
-    plt.xlabel('env steps', fontsize=15)
-    plt.ylabel('KL term', fontsize=15)
-    plt.tight_layout()
-    if image_folder is not None:
-        plt.savefig('{}/{}_kl'.format(image_folder, iter_idx))
-        plt.close()
-    else:
-        plt.show()
-
-    # --- plot rew reconstruction ---
-
-    rew_reconstr_mean = torch.stack(rew_reconstr_mean).detach().cpu().numpy()
-    rew_reconstr_std = torch.stack(rew_reconstr_std).detach().cpu().numpy()
-    rew_pred_std = torch.stack(rew_pred_std).detach().cpu().numpy()
-
-    plt.figure(figsize=(12, 5))
-    plt.subplot(1, 2, 1)
-    p = plt.plot(x, rew_reconstr_mean, 'b-')
-    plt.gca().fill_between(x,
-                           rew_reconstr_mean - rew_reconstr_std,
-                           rew_reconstr_mean + rew_reconstr_std,
-                           facecolor=p[0].get_color(), alpha=0.1)
-    for tj in np.cumsum([0, *[num_episode_steps for _ in range(num_rollouts)]]):
-        min_y = (rew_reconstr_mean - rew_reconstr_std).min()
-        max_y = (rew_reconstr_mean + rew_reconstr_std).max()
-        span = max_y - min_y
-        plt.plot([tj + 0.5, tj + 0.5],
-                 [min_y - span * 0.05, max_y + span * 0.05],
-                 'k--', alpha=0.5)
-    plt.xlabel('env steps', fontsize=15)
-    plt.ylabel('reward reconstruction error', fontsize=15)
-
-    plt.subplot(1, 2, 2)
-    plt.plot(x, rew_pred_std, 'b-')
-    for tj in np.cumsum([0, *[num_episode_steps for _ in range(num_rollouts)]]):
-        span = rew_pred_std.max() - rew_pred_std.min()
-        plt.plot([tj + 0.5, tj + 0.5],
-                 [rew_pred_std.min() - span * 0.05, rew_pred_std.max() + span * 0.05],
-                 'k--', alpha=0.5)
-    plt.xlabel('env steps', fontsize=15)
-    plt.ylabel('std of rew reconstruction', fontsize=15)
-    plt.tight_layout()
-    if image_folder is not None:
-        plt.savefig('{}/{}_rew_reconstruction'.format(image_folder, iter_idx))
         plt.close()
     else:
         plt.show()
